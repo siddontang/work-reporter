@@ -51,7 +51,7 @@ func genUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint 
 
 	jql := `
 <ac:structured-macro ac:name="jira">
-  <ac:parameter ac:name="columns">key,summary,type,created,updated,due,assignee,reporter,priority,status,resolution</ac:parameter>
+  <ac:parameter ac:name="columns">key,summary,created,updated,priority,status</ac:parameter>
   <ac:parameter ac:name="server">%s</ac:parameter>
   <ac:parameter ac:name="serverId">%s</ac:parameter>
   <ac:parameter ac:name="jqlQuery">project = TIKV AND sprint = %d AND assignee = "%s"</ac:parameter>
