@@ -150,8 +150,8 @@ func genToc(buf *bytes.Buffer) {
 func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	id := getBoardID(config.Jira.Project, "scrum")
 	sprint := getActiveSprint(id)
-	nextSprint := createNextSprint(id)
-
+	// Next sprint starts at the end of the current sprint
+	nextSprint := createNextSprint(id, *sprint.EndDate)
 	var body bytes.Buffer
 
 	startDate := sprint.StartDate.Format(dayFormat)

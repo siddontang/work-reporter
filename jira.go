@@ -66,15 +66,13 @@ func createSprint(boardID int, name string, startDate, endDate string) jira.Spri
 	return *responseSprint
 }
 
-func createNextSprint(boardID int) jira.Sprint {
-	now := time.Now()
-	// Assume now is 2018-09-28 12:00:00
-	// The next sprint's start time is 2018-09-28 00:00:00
-	// and the end time is 2018-10-05 00:00:00
-	startDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+func createNextSprint(boardID int, startDate time.Time) jira.Sprint {
+	// We assuem the sprint starts at 00:00 and ends at 00:00
+	// E.g, current sprint time range is 2018-09-28T00:00:00+08:00 2018-10-05T00:00:00+08:00
+	// So the next sprint is 2018-10-05T00:00:00+08:00, 2018-10-12T00:00:00+08:00
+	// The sprint name is 2018-10-05 - 2018-10-11
 	endDate := startDate.Add(sprintDuration)
 
-	// The sprint name is 2018-09-28 - 2018-10-04
 	name := fmt.Sprintf("%s - %s", startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
 
 	sprints := getSprints(boardID, "future")
@@ -94,4 +92,20 @@ func deleteSprint(sprintID int) {
 
 	_, err = jiraClient.Do(req, nil)
 	perror(err)
+}
+
+func updateSprintTime(sprintID int, startDate, endDate string) jira.Sprint {
+	apiEndpoint := "rest/agile/1.0/sprint/" + strconv.Itoa(sprintID)
+	sprint := map[string]string{
+		"startDate": startDate,
+		"endDate":   endDate,
+	}
+	req, err := jiraClient.NewRequest("POST", apiEndpoint, sprint)
+	perror(err)
+
+	responseSprint := new(jira.Sprint)
+	_, err = jiraClient.Do(req, responseSprint)
+	perror(err)
+
+	return *responseSprint
 }
