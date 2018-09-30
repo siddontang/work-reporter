@@ -71,7 +71,7 @@ func genUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint 
 func genInvolvesPullReques(buf *bytes.Buffer, user, start, end string) {
 	buf.WriteString("<h3>Review PR</h3>")
 
-	issues := getInvolvesPullRequest(user, start, end)
+	issues := getInvolvesPullRequests(user, start, end)
 	if len(issues) == 0 {
 		return
 	}
@@ -114,14 +114,12 @@ func htmlFormatIssue(issue github.Issue) string {
 	return s
 }
 
-func genCreatedIssues(buf *bytes.Buffer, start, end string) {
-	buf.WriteString("<h1>Issues</h1>")
-
-	issues := getCreatedIssues(start, end)
+func htmlFormatIssues(buf *bytes.Buffer, title string, issues []github.Issue) {
 	if len(issues) == 0 {
 		return
 	}
 
+	buf.WriteString(fmt.Sprintf("<h1>%s</h1>", title))
 	buf.WriteString("<ul>")
 
 	for _, issue := range issues {
@@ -129,6 +127,11 @@ func genCreatedIssues(buf *bytes.Buffer, start, end string) {
 	}
 
 	buf.WriteString("</ul>")
+}
+
+func genCreatedIssues(buf *bytes.Buffer, title string, start, end string) {
+	issues := getCreatedIssues(start, end)
+	htmlFormatIssues(buf, title, issues)
 }
 
 func genToc(buf *bytes.Buffer) {
@@ -156,7 +159,7 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 
 	genToc(&body)
 	genOnCall(&body, startDate, endDate)
-	genCreatedIssues(&body, startDate, endDate)
+	genCreatedIssues(&body, "Issues", startDate, endDate)
 
 	for _, team := range config.Teams {
 		body.WriteString(fmt.Sprintf("<h1>%s Team</h1>", team.Name))

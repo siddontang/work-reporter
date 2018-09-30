@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -9,17 +10,21 @@ import (
 
 var repoQuery string
 
-func getCreatedIssues(start, end string) []github.Issue {
+func getIssues(sort string, queryArgs map[string]string) []github.Issue {
 	opt := github.SearchOptions{
-		Sort: "created",
+		Sort: sort,
 	}
 
 	var allIssues []github.Issue
 
-	query := fmt.Sprintf("%s created:%s..%s is:issue", repoQuery, start, end)
+	query := bytes.NewBufferString(repoQuery)
+
+	for key, value := range queryArgs {
+		query.WriteString(fmt.Sprintf(" %s:%s", key, value))
+	}
 
 	for {
-		issues, resp, err := githubClient.Search.Issues(globalCtx, query, &opt)
+		issues, resp, err := githubClient.Search.Issues(globalCtx, query.String(), &opt)
 		perror(err)
 
 		allIssues = append(allIssues, issues.Issues...)
@@ -33,28 +38,26 @@ func getCreatedIssues(start, end string) []github.Issue {
 	return allIssues
 }
 
-func getInvolvesPullRequest(user string, start, end string) []github.Issue {
-	opt := github.SearchOptions{
-		Sort: "updated",
-	}
+func getCreatedIssues(start string, end string) []github.Issue {
+	return getIssues("created", map[string]string{
+		"is":      "issue",
+		"created": fmt.Sprintf("%s..%s", start, end),
+	})
+}
 
-	var allIssues []github.Issue
+func getCreatedPullRequests(start string, end string) []github.Issue {
+	return getIssues("created", map[string]string{
+		"is":      "pr",
+		"created": fmt.Sprintf("%s..%s", start, end),
+	})
+}
 
-	query := fmt.Sprintf("%s updated:%s..%s is:pr involves:%s", repoQuery, start, end, user)
-
-	for {
-		issues, resp, err := githubClient.Search.Issues(globalCtx, query, &opt)
-		perror(err)
-
-		allIssues = append(allIssues, issues.Issues...)
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.ListOptions.Page = resp.NextPage
-	}
-
-	return allIssues
+func getInvolvesPullRequests(user string, start, end string) []github.Issue {
+	return getIssues("upated", map[string]string{
+		"is":       "pr",
+		"involves": user,
+		"updated":  fmt.Sprintf("%s..%s", start, end),
+	})
 }
 
 func initRepoQuery() {
