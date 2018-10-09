@@ -56,5 +56,10 @@ func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	issues = getCreatedPullRequests(start, end)
 	plainFormatIssues(&buf, "New Pull Requests", issues)
 
+	msg := buf.String()
+	if len(msg) == 0 {
+		return
+	}
+
 	sendToSlack(buf.String())
 }

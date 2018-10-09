@@ -95,12 +95,22 @@ func deleteSprint(sprintID int) {
 }
 
 func updateSprintTime(sprintID int, startDate, endDate string) jira.Sprint {
-	apiEndpoint := "rest/agile/1.0/sprint/" + strconv.Itoa(sprintID)
-	sprint := map[string]string{
+	return updateSprint(sprintID, map[string]string{
 		"startDate": startDate,
 		"endDate":   endDate,
-	}
-	req, err := jiraClient.NewRequest("POST", apiEndpoint, sprint)
+	})
+}
+
+func updateSprintState(sprintID int, state string) jira.Sprint {
+	return updateSprint(sprintID, map[string]string{
+		"state": state,
+	})
+}
+
+func updateSprint(sprintID int, args map[string]string) jira.Sprint {
+	apiEndpoint := "rest/agile/1.0/sprint/" + strconv.Itoa(sprintID)
+
+	req, err := jiraClient.NewRequest("POST", apiEndpoint, args)
 	perror(err)
 
 	responseSprint := new(jira.Sprint)

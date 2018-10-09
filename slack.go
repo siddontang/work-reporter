@@ -6,7 +6,7 @@ import (
 	"github.com/nlopes/slack"
 )
 
-func sendToSlack(msg string) {
+func sendToSlack(format string, args ...interface{}) {
 	token := config.Slack.Token
 	channelName := config.Slack.Channel
 	user := config.Slack.User
@@ -26,9 +26,10 @@ func sendToSlack(msg string) {
 	}
 
 	api := slack.New(token)
-	params := slack.PostMessageParameters{Username: user, Markdown: true}
-	_, _, err := api.PostMessage(channelName, msg, params)
+	_, _, err := api.PostMessage(channelName,
+		slack.MsgOptionUser(user),
+		slack.MsgOptionText(fmt.Sprintf(format, args...), true))
 	if err != nil {
-		perror(fmt.Errorf("can not post msg to slack with err: %v\n", err))
+		perror(fmt.Errorf("can not post msg to slack with err: %v", err))
 	}
 }

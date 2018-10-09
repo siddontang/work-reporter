@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html"
-	"strings"
 
 	"github.com/andygrunwald/go-jira"
 
@@ -13,26 +12,8 @@ import (
 )
 
 var (
-	emailToGithub = map[string]string{}
-	githubToEmail = map[string]string{}
+	createNextSprintOnly bool
 )
-
-func initAccountMapping() {
-	update := func(m map[string]string, key string, value string) map[string]string {
-		key = strings.ToLower(key)
-		if _, ok := m[key]; ok {
-			perrmsg(fmt.Sprintf("duplicated %s %s", key, value))
-		}
-		m[key] = value
-		return m
-	}
-	for _, team := range config.Teams {
-		for _, member := range team.Members {
-			emailToGithub = update(emailToGithub, member.Email, member.Github)
-			githubToEmail = update(githubToEmail, member.Github, member.Email)
-		}
-	}
-}
 
 func newWeeklyCommand() *cobra.Command {
 	m := &cobra.Command{
@@ -41,6 +22,8 @@ func newWeeklyCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(0),
 		Run:   runWeelyCommandFunc,
 	}
+
+	m.Flags().BoolVar(&createNextSprintOnly, "create-next-sprint-only", false, "Only Create next sprint")
 
 	return m
 }
@@ -152,6 +135,12 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	sprint := getActiveSprint(id)
 	// Next sprint starts at the end of the current sprint
 	nextSprint := createNextSprint(id, *sprint.EndDate)
+	sendToSlack("please fill your next sprint works at %s", nextSprint.Name)
+
+	if createNextSprintOnly {
+		return
+	}
+
 	var body bytes.Buffer
 
 	startDate := sprint.StartDate.Format(dayFormat)
@@ -168,7 +157,6 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	sendToSlack(fmt.Sprintf("please fill your next sprint works at %s", nextSprint.Name))
 	title := sprint.Name
 	createWeeklyReport(title, body.String())
 }
@@ -184,5 +172,5 @@ func createWeeklyReport(title string, value string) {
 		c = createContent(space, parent.Id, title, value)
 	}
 
-	sendToSlack(fmt.Sprintf("weekly report for sprint %s is generated, please see %s%s", title, config.Confluence.Endpoint, c.Links.WebUI))
+	sendToSlack("weekly report for sprint %s is generated, please see %s%s", title, config.Confluence.Endpoint, c.Links.WebUI)
 }

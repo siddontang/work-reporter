@@ -71,7 +71,6 @@ func initGlobal() {
 	config = cfg
 
 	initRepoQuery()
-	initAccountMapping()
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: cfg.Github.Token},
