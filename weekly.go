@@ -11,10 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	createNextSprintOnly bool
-)
-
 func newWeeklyCommand() *cobra.Command {
 	m := &cobra.Command{
 		Use:   "weekly",
@@ -22,8 +18,6 @@ func newWeeklyCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(0),
 		Run:   runWeelyCommandFunc,
 	}
-
-	m.Flags().BoolVar(&createNextSprintOnly, "create-next-sprint-only", false, "Only Create next sprint")
 
 	return m
 }
@@ -136,10 +130,6 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	// Next sprint starts at the end of the current sprint
 	nextSprint := createNextSprint(id, *sprint.EndDate)
 	sendToSlack("please fill your next sprint works at %s", nextSprint.Name)
-
-	if createNextSprintOnly {
-		return
-	}
 
 	var body bytes.Buffer
 
