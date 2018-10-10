@@ -38,7 +38,7 @@ func genUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint 
 	buf.WriteString(fmt.Sprintf("<h2>%s</h2>", m.Name))
 	buf.WriteString("<h3>Work</h3>")
 	buf.WriteString(fmt.Sprintf(jql, config.Jira.Server, config.Jira.ServerID, sprintID, m.Email))
-	genInvolvesPullReques(buf, m.Github, curSprint.StartDate.Format(dateFormat), curSprint.EndDate.Format(dateFormat))
+	genInvolvesPullReques(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
 	if nextSprintID > 0 {
 		buf.WriteString("<h3>Next Week</h3>")
 		buf.WriteString(fmt.Sprintf(jql, config.Jira.Server, config.Jira.ServerID, nextSprintID, m.Email))

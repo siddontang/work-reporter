@@ -46,8 +46,8 @@ func plainFormatIssues(buf *bytes.Buffer, title string, issues []github.Issue) {
 
 func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	now := time.Now()
-	start := now.Add(-24 * time.Hour).Format(dateFormat)
-	end := now.Format(dateFormat)
+	start := now.Add(-24 * time.Hour).Format(dayFormat)
+	end := now.Format(dayFormat)
 
 	var buf bytes.Buffer
 	issues := getCreatedIssues(start, end)
