@@ -76,12 +76,12 @@ func getCreatedPullRequests(start string, end string) []github.Issue {
 	})
 }
 
-func getInvolvesPullRequests(user string, start, end string) []github.Issue {
+func getReviewPullRequests(user string, start, end string) []github.Issue {
 	return getIssues("upated", map[string]string{
-		"is":       "pr",
-		"involves": user,
-		"-author":  user,
-		"updated":  fmt.Sprintf("%s..%s", start, end),
+		"is":        "pr",
+		"commenter": user,
+		"-author":   user,
+		"updated":   fmt.Sprintf("%s..%s", start, end),
 	})
 }
 

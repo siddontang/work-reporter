@@ -38,17 +38,17 @@ func genUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint 
 	buf.WriteString(fmt.Sprintf("<h2>%s</h2>", m.Name))
 	buf.WriteString("<h3>Work</h3>")
 	buf.WriteString(fmt.Sprintf(jql, config.Jira.Server, config.Jira.ServerID, sprintID, m.Email))
-	genInvolvesPullReques(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
+	genReviewPullReques(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
 	if nextSprintID > 0 {
 		buf.WriteString("<h3>Next Week</h3>")
 		buf.WriteString(fmt.Sprintf(jql, config.Jira.Server, config.Jira.ServerID, nextSprintID, m.Email))
 	}
 }
 
-func genInvolvesPullReques(buf *bytes.Buffer, user, start, end string) {
+func genReviewPullReques(buf *bytes.Buffer, user, start, end string) {
 	buf.WriteString("<h3>Review PR</h3>")
 
-	issues := getInvolvesPullRequests(user, start, end)
+	issues := getReviewPullRequests(user, start, end)
 	if len(issues) == 0 {
 		return
 	}
