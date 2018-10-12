@@ -25,5 +25,4 @@ The tool needs to support:
 ## TODO
 
 - [ ] Move issues from current sprint to the next sprint
-- [ ] Handle RateLimit problem when search Github
 - [ ] Add more daily report page

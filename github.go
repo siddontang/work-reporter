@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/github"
 )
@@ -23,8 +24,22 @@ func getIssues(sort string, queryArgs map[string]string) []github.Issue {
 		query.WriteString(fmt.Sprintf(" %s:%s", key, value))
 	}
 
+	retryCount := 0
 	for {
 		issues, resp, err := githubClient.Search.Issues(globalCtx, query.String(), &opt)
+		if err1, ok := err.(*github.RateLimitError); ok {
+			dur := err1.Rate.Reset.Time.Sub(time.Now())
+			if dur < 0 {
+				dur = time.Minute
+			}
+			retryCount++
+			if retryCount <= 10 {
+				fmt.Printf("meet RateLimitError, wait %s and retry %d\n", dur, retryCount)
+				time.Sleep(dur)
+				continue
+			}
+		}
+
 		perror(err)
 
 		allIssues = append(allIssues, issues.Issues...)
