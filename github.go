@@ -56,6 +56,7 @@ func getInvolvesPullRequests(user string, start, end string) []github.Issue {
 	return getIssues("upated", map[string]string{
 		"is":       "pr",
 		"involves": user,
+		"-author":  user,
 		"updated":  fmt.Sprintf("%s..%s", start, end),
 	})
 }
