@@ -11,12 +11,21 @@ import (
 
 var repoQuery string
 
-func getIssues(sort string, queryArgs map[string]string) []github.Issue {
+// IssueSlice is the slice of issues
+type IssueSlice []github.Issue
+
+func (s IssueSlice) Len() int      { return len(s) }
+func (s IssueSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s IssueSlice) Less(i, j int) bool {
+	return s[i].GetHTMLURL() < s[j].GetHTMLURL()
+}
+
+func getIssues(sort string, queryArgs map[string]string) IssueSlice {
 	opt := github.SearchOptions{
 		Sort: sort,
 	}
 
-	var allIssues []github.Issue
+	var allIssues IssueSlice
 
 	query := bytes.NewBufferString(repoQuery)
 
