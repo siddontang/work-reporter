@@ -21,3 +21,9 @@ The tool needs to support:
 
 + Grabs new issues, pull requests during last 24 hours, adds to weekly duty report
 + sends messages to slack channel
+
+## TODO
+
+- [ ] Move issues from current sprint to the next sprint
+- [ ] Handle RateLimit problem when search Github
+- [ ] Add more daily report page
