@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,9 +21,9 @@ func (s IssueSlice) Less(i, j int) bool {
 	return s[i].GetHTMLURL() < s[j].GetHTMLURL()
 }
 
-func getIssues(sort string, queryArgs map[string]string) IssueSlice {
+func getIssues(bySort string, queryArgs map[string]string) IssueSlice {
 	opt := github.SearchOptions{
-		Sort: sort,
+		Sort: bySort,
 	}
 
 	var allIssues IssueSlice
@@ -59,6 +60,7 @@ func getIssues(sort string, queryArgs map[string]string) IssueSlice {
 		opt.ListOptions.Page = resp.NextPage
 	}
 
+	sort.Sort(allIssues)
 	return allIssues
 }
 
