@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -118,4 +119,66 @@ func updateSprint(sprintID int, args map[string]string) jira.Sprint {
 	perror(err)
 
 	return *responseSprint
+}
+
+// A pagination-aware alternative for SprintService.GetIssuesForSprint.
+//
+// https://developer.atlassian.com/cloud/jira/software/rest/#api-rest-agile-1-0-sprint-sprintId-issue-get
+// Pagination: https://developer.atlassian.com/cloud/jira/software/rest/#introduction
+func getIssuesForSprint(sprintID int) []jira.Issue {
+	apiEndpoint := fmt.Sprintf("rest/agile/1.0/sprint/%d/issue", sprintID)
+
+	issues := []jira.Issue{}
+	resp := struct {
+		Issues     []jira.Issue `json:"issues" structs:"issues"`
+		MaxResults int          `json:"maxResults" structs:"maxResults"`
+		StartAt    int          `json:"startAt" structs:"startAt"`
+		Total      int          `json:"total" structs:"total"`
+	}{}
+
+	pos := 0
+	for {
+		req, err := jiraClient.NewRequest("GET", apiEndpoint, nil)
+		perror(err)
+		req.URL.RawQuery = url.Values(map[string][]string{
+			"startAt": {strconv.Itoa(pos)},
+		}).Encode()
+
+		_, err = jiraClient.Do(req, &resp)
+		perror(err)
+
+		issues = append(issues, resp.Issues...)
+		if len(issues) == resp.Total {
+			break
+		} else {
+			pos = len(issues)
+		}
+	}
+
+	return issues
+}
+
+// A pagination-aware alternative for SprintService.MoveIssuesToSprint.
+//
+// https://developer.atlassian.com/cloud/jira/software/rest/#api-rest-agile-1-0-sprint-sprintId-issue-post
+func moveIssuesToSprint(sprintID int, issues []jira.Issue) {
+	apiEndpoint := fmt.Sprintf("rest/agile/1.0/sprint/%d/issue", sprintID)
+
+	// The maximum number of issues that can be moved in one operation is 50.
+	batchMax := 50
+	buffer := make([]string, 0)
+	total := len(issues)
+	for idx, ise := range issues {
+		buffer = append(buffer, ise.ID)
+		if len(buffer) == batchMax || idx+1 == total {
+			payload := jira.IssuesWrapper{Issues: buffer}
+			req, err := jiraClient.NewRequest("POST", apiEndpoint, payload)
+			perror(err)
+			_, err = jiraClient.Do(req, nil)
+			perror(err)
+
+			// clear buffer
+			buffer = make([]string, 0)
+		}
+	}
 }

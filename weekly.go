@@ -149,6 +149,7 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	title := sprint.Name
 	createWeeklyReport(title, body.String())
 
+	// TODO: move issues then close sprint.
 	sendToSlack("please complete sprint %s", sprint.Name)
 }
 
