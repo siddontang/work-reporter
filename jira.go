@@ -14,6 +14,8 @@ const (
 	dateFormat = "2006-01-02T15:04:05Z07:00"
 	// We use one week for a sprint
 	sprintDuration = 7 * 24 * time.Hour
+
+	issuesStatusClosed = "Job Closed"
 )
 
 // Get the board ID by project and boardType.

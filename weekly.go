@@ -149,8 +149,20 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	title := sprint.Name
 	createWeeklyReport(title, body.String())
 
-	// TODO: move issues then close sprint.
-	sendToSlack("please complete sprint %s", sprint.Name)
+	issues := getIssuesForSprint(sprint.ID)
+	pendingIssues := make([]jira.Issue, 0)
+	for _, is := range issues {
+		if is.Fields.Status.Name == issuesStatusClosed {
+			continue
+		}
+		pendingIssues = append(pendingIssues, is)
+	}
+	// Active the next sprint before moving issues.
+	updateSprintState(nextSprint.ID, "active")
+	moveIssuesToSprint(nextSprint.ID, pendingIssues)
+	// Then close the old sprint.
+	updateSprintState(sprint.ID, "closed")
+	sendToSlack("close current active sprint %s", sprint.Name)
 }
 
 func createWeeklyReport(title string, value string) {
