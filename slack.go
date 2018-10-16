@@ -58,7 +58,14 @@ func formatGitHubIssueForSlackOutput(issue github.Issue) string {
 		tp = " _(Community)_"
 	}
 
-	s := fmt.Sprintf("[ %s ]%s <%s|%s> by @%s", regexRepo.FindStringSubmatch(issue.GetHTMLURL())[1], tp, issue.GetHTMLURL(), slackutilsx.EscapeMessage(issue.GetTitle()), issue.GetUser().GetLogin())
+	s := fmt.Sprintf(
+		"[ %s ]%s <%s|%s> by @%s",
+		slackutilsx.EscapeMessage(regexRepo.FindStringSubmatch(issue.GetHTMLURL())[1]),
+		slackutilsx.EscapeMessage(tp),
+		issue.GetHTMLURL(),
+		slackutilsx.EscapeMessage(issue.GetTitle()),
+		slackutilsx.EscapeMessage(issue.GetUser().GetLogin()),
+	)
 
 	if issue.Assignees != nil && len(issue.Assignees) > 0 {
 		s += fmt.Sprintf(", assigned to")
@@ -80,7 +87,13 @@ func formatJiraIssueForSlackOutput(issue jira.Issue) string {
 	if issue.Fields != nil && issue.Fields.Priority != nil {
 		priority = issue.Fields.Priority.Name
 	}
-	return fmt.Sprintf("[ %s / %s ] <%s|%s>", status, priority, link, issue.Fields.Summary)
+	return fmt.Sprintf(
+		"[ %s / %s ] <%s|%s>",
+		slackutilsx.EscapeMessage(status),
+		slackutilsx.EscapeMessage(priority),
+		link,
+		slackutilsx.EscapeMessage(issue.Fields.Summary),
+	)
 }
 
 func formatGitHubIssuesForSlackOutput(buf *bytes.Buffer, issues []github.Issue) {
