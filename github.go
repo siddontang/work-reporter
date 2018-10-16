@@ -12,6 +12,13 @@ import (
 
 var repoQuery string
 
+var allMembers []string
+
+const (
+	// go-github/github incorrectly handles URL escape with "+", so we avoid "+" by using a UTC time
+	githubUTCDateFormat = "2006-01-02T15:04:05Z"
+)
+
 // IssueSlice is the slice of issues
 type IssueSlice []github.Issue
 
@@ -64,30 +71,46 @@ func getIssues(bySort string, queryArgs map[string]string) IssueSlice {
 	return allIssues
 }
 
-func getCreatedIssues(start string, end string) []github.Issue {
+func generateDateRangeQuery(start string, end *string) string {
+	if end != nil {
+		return fmt.Sprintf("%s..%s", start, *end)
+	} else {
+		return fmt.Sprintf(">=%s", start)
+	}
+}
+
+func getCreatedIssues(start string, end *string) []github.Issue {
 	return getIssues("created", map[string]string{
 		"is":      "issue",
-		"created": fmt.Sprintf("%s..%s", start, end),
+		"created": generateDateRangeQuery(start, end),
 	})
 }
 
-func getCreatedPullRequests(start string, end string) []github.Issue {
+func getCreatedPullRequests(start string, end *string) []github.Issue {
 	return getIssues("created", map[string]string{
 		"is":      "pr",
-		"created": fmt.Sprintf("%s..%s", start, end),
+		"created": generateDateRangeQuery(start, end),
 	})
 }
 
-func getReviewPullRequests(user string, start, end string) []github.Issue {
-	return getIssues("upated", map[string]string{
+func getReviewPullRequests(user string, start string, end *string) []github.Issue {
+	return getIssues("updated", map[string]string{
 		"is":        "pr",
 		"commenter": user,
 		"-author":   user,
-		"updated":   fmt.Sprintf("%s..%s", start, end),
+		"updated":   generateDateRangeQuery(start, end),
 	})
 }
 
 func initRepoQuery() {
 	s := strings.Join(config.Github.Repos, " repo:")
 	repoQuery = "repo:" + s
+}
+
+func initTeamMembers() {
+	for _, team := range config.Teams {
+		for _, member := range team.Members {
+			allMembers = append(allMembers, member.Github)
+		}
+	}
 }

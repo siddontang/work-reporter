@@ -79,6 +79,8 @@ func initGlobal() {
 	tc := oauth2.NewClient(globalCtx, ts)
 	githubClient = github.NewClient(tc)
 
+	initTeamMembers()
+
 	jiraTransport := jira.BasicAuthTransport{
 		Username: config.Jira.User,
 		Password: config.Jira.Password,
