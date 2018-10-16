@@ -124,20 +124,14 @@ func updateSprint(sprintID int, args map[string]string) jira.Sprint {
 }
 
 // A pagination-aware alternative for SprintService.GetIssuesForSprint.
+// It preserves issues that satisfies the filter (return true).
 //
 // https://developer.atlassian.com/cloud/jira/software/rest/#api-rest-agile-1-0-sprint-sprintId-issue-get
 // Pagination: https://developer.atlassian.com/cloud/jira/software/rest/#introduction
-func getIssuesForSprint(sprintID int) []jira.Issue {
+func getIssuesForSprintWithFilter(sprintID int, filter func(*jira.Issue) bool) []jira.Issue {
 	apiEndpoint := fmt.Sprintf("rest/agile/1.0/sprint/%d/issue", sprintID)
 
 	issues := []jira.Issue{}
-	resp := struct {
-		Issues     []jira.Issue `json:"issues" structs:"issues"`
-		MaxResults int          `json:"maxResults" structs:"maxResults"`
-		StartAt    int          `json:"startAt" structs:"startAt"`
-		Total      int          `json:"total" structs:"total"`
-	}{}
-
 	pos := 0
 	for {
 		req, err := jiraClient.NewRequest("GET", apiEndpoint, nil)
@@ -146,14 +140,19 @@ func getIssuesForSprint(sprintID int) []jira.Issue {
 			"startAt": {strconv.Itoa(pos)},
 		}).Encode()
 
+		resp := jira.IssuesInSprintResult{}
 		_, err = jiraClient.Do(req, &resp)
 		perror(err)
 
-		issues = append(issues, resp.Issues...)
-		if len(issues) == resp.Total {
+		if len(resp.Issues) == 0 {
 			break
 		} else {
-			pos = len(issues)
+			pos += len(resp.Issues)
+			for _, is := range resp.Issues {
+				if filter(&is) {
+					issues = append(issues, is)
+				}
+			}
 		}
 	}
 
@@ -168,7 +167,7 @@ func moveIssuesToSprint(sprintID int, issues []jira.Issue) {
 
 	// The maximum number of issues that can be moved in one operation is 50.
 	batchMax := 50
-	buffer := make([]string, 0)
+	buffer := make([]string, 0, batchMax)
 	total := len(issues)
 	for idx, ise := range issues {
 		buffer = append(buffer, ise.ID)
