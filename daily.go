@@ -21,16 +21,12 @@ func newDailyCommand() *cobra.Command {
 	return m
 }
 
-func formatDailyInactiveOnCalls(buf *bytes.Buffer) {
-
-}
-
 func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	now := time.Now().UTC()
 	start := now.Add(-24 * time.Hour).Format(githubUTCDateFormat)
 
 	var buf bytes.Buffer
-	buf.WriteString("\n")
+	buf.WriteString(".\n")
 
 	issues := getCreatedIssues(start, nil)
 	formatSectionForSlackOutput(&buf, "New Issues", "New issues in last 24 hours")

@@ -11,15 +11,47 @@ import (
 	"github.com/nlopes/slack/slackutilsx"
 )
 
-func sendToSlack(format string, args ...interface{}) {
-	token := config.Slack.Token
-	channelName := config.Slack.Channel
-	user := config.Slack.User
+// Use getSlackClient() to access it with lazy initialize feature.
+var slackClient *slack.Client = nil
 
-	if token == "" {
-		println("no slack token")
+var slackMemberInit = false
+var slackMembers = map[string]string{}
+
+func getSlackClient() *slack.Client {
+	if slackClient == nil {
+		slackClient = slack.New(config.Slack.Token)
+	}
+	return slackClient
+}
+
+func initSlackMemberCache() {
+	if slackMemberInit {
 		return
 	}
+	users, err := getSlackClient().GetUsers()
+	perror(err)
+	if len(users) == 0 {
+		perror(fmt.Errorf("cannot retrieve slack user list. slack app must be granted `users:read` and `users:read.email` permission"))
+	}
+
+	for _, user := range users {
+		slackMembers[strings.ToLower(user.Profile.Email)] = user.ID
+	}
+	slackMemberInit = true
+}
+
+func buildSlackMention(email string) string {
+	initSlackMemberCache()
+	id, ok := slackMembers[strings.ToLower(email)]
+	if !ok {
+		return slackutilsx.EscapeMessage(email)
+	}
+	return fmt.Sprintf("<@%s>", id)
+}
+
+func sendToSlack(format string, args ...interface{}) {
+	channelName := config.Slack.Channel
+	user := config.Slack.User
 
 	if channelName == "" {
 		println("no slack channel name")
@@ -30,8 +62,7 @@ func sendToSlack(format string, args ...interface{}) {
 		channelName = "#" + channelName
 	}
 
-	api := slack.New(token)
-	_, _, err := api.PostMessage(channelName,
+	_, _, err := getSlackClient().PostMessage(channelName,
 		slack.MsgOptionUser(user),
 		slack.MsgOptionText(fmt.Sprintf(format, args...), false))
 	if err != nil {
@@ -47,6 +78,7 @@ func formatSectionForSlackOutput(buf *bytes.Buffer, title string, description st
 func formatGitHubIssueForSlackOutput(issue github.Issue) string {
 	isFromTeam := false
 	login := issue.GetUser().GetLogin()
+
 	for _, id := range allMembers {
 		if strings.EqualFold(id, login) {
 			isFromTeam = true
@@ -57,10 +89,15 @@ func formatGitHubIssueForSlackOutput(issue github.Issue) string {
 	if !isFromTeam {
 		tp = " _(Community)_"
 	}
+	var closed string
+	if issue.GetState() == "closed" {
+		closed = " _(Closed)_"
+	}
 
 	s := fmt.Sprintf(
-		"[ %s ]%s <%s|%s> by @%s",
+		"[ %s ]%s%s <%s|%s> by @%s",
 		slackutilsx.EscapeMessage(regexRepo.FindStringSubmatch(issue.GetHTMLURL())[1]),
+		slackutilsx.EscapeMessage(closed),
 		slackutilsx.EscapeMessage(tp),
 		issue.GetHTMLURL(),
 		slackutilsx.EscapeMessage(issue.GetTitle()),
@@ -87,12 +124,17 @@ func formatJiraIssueForSlackOutput(issue jira.Issue) string {
 	if issue.Fields != nil && issue.Fields.Priority != nil {
 		priority = issue.Fields.Priority.Name
 	}
+	assignment := ""
+	if issue.Fields != nil && issue.Fields.Assignee != nil {
+		assignment = fmt.Sprintf("assigned to %s", buildSlackMention(issue.Fields.Assignee.EmailAddress))
+	}
 	return fmt.Sprintf(
-		"[ %s / %s ] <%s|%s>",
+		"[ %s / %s ] <%s|%s> %s",
 		slackutilsx.EscapeMessage(status),
 		slackutilsx.EscapeMessage(priority),
 		link,
 		slackutilsx.EscapeMessage(issue.Fields.Summary),
+		assignment,
 	)
 }
 
