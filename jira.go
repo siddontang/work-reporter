@@ -119,3 +119,11 @@ func updateSprint(sprintID int, args map[string]string) jira.Sprint {
 
 	return *responseSprint
 }
+
+func queryJiraIssues(jql string) []jira.Issue {
+	issues, _, err := jiraClient.Issue.Search(jql, &jira.SearchOptions{
+		MaxResults: 1000,
+	})
+	perror(err)
+	return issues
+}

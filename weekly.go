@@ -6,7 +6,6 @@ import (
 	"html"
 
 	"github.com/andygrunwald/go-jira"
-
 	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
 )
@@ -48,7 +47,7 @@ func genUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint 
 func genReviewPullReques(buf *bytes.Buffer, user, start, end string) {
 	buf.WriteString("<h3>Review PR</h3>")
 
-	issues := getReviewPullRequests(user, start, end)
+	issues := getReviewPullRequests(user, start, &end)
 	if len(issues) == 0 {
 		return
 	}
@@ -107,7 +106,7 @@ func htmlFormatIssues(buf *bytes.Buffer, title string, issues []github.Issue) {
 }
 
 func genCreatedIssues(buf *bytes.Buffer, title string, start, end string) {
-	issues := getCreatedIssues(start, end)
+	issues := getCreatedIssues(start, &end)
 	htmlFormatIssues(buf, title, issues)
 }
 
