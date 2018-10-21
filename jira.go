@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -14,8 +13,6 @@ const (
 	dateFormat = "2006-01-02T15:04:05Z07:00"
 	// We use one week for a sprint
 	sprintDuration = 7 * 24 * time.Hour
-
-	issuesStatusClosed = "Job Closed"
 )
 
 // Get the board ID by project and boardType.
@@ -121,42 +118,6 @@ func updateSprint(sprintID int, args map[string]string) jira.Sprint {
 	perror(err)
 
 	return *responseSprint
-}
-
-// A pagination-aware alternative for SprintService.GetIssuesForSprint.
-// It preserves issues that satisfies the filter (return true).
-//
-// https://developer.atlassian.com/cloud/jira/software/rest/#api-rest-agile-1-0-sprint-sprintId-issue-get
-// Pagination: https://developer.atlassian.com/cloud/jira/software/rest/#introduction
-func getIssuesForSprintWithFilter(sprintID int, filter func(*jira.Issue) bool) []jira.Issue {
-	apiEndpoint := fmt.Sprintf("rest/agile/1.0/sprint/%d/issue", sprintID)
-
-	issues := []jira.Issue{}
-	pos := 0
-	for {
-		req, err := jiraClient.NewRequest("GET", apiEndpoint, nil)
-		perror(err)
-		req.URL.RawQuery = url.Values(map[string][]string{
-			"startAt": {strconv.Itoa(pos)},
-		}).Encode()
-
-		resp := jira.IssuesInSprintResult{}
-		_, err = jiraClient.Do(req, &resp)
-		perror(err)
-
-		if len(resp.Issues) == 0 {
-			break
-		} else {
-			pos += len(resp.Issues)
-			for _, is := range resp.Issues {
-				if filter(&is) {
-					issues = append(issues, is)
-				}
-			}
-		}
-	}
-
-	return issues
 }
 
 // A pagination-aware alternative for SprintService.MoveIssuesToSprint.

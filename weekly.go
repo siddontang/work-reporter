@@ -149,9 +149,10 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	title := sprint.Name
 	createWeeklyReport(title, body.String())
 
-	pendingIssues := getIssuesForSprintWithFilter(sprint.ID, func(issue *jira.Issue) bool {
-		return issue.Fields.Status.Name != issuesStatusClosed
-	})
+	pendingIssues := queryJiraIssues(
+		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
+			config.Jira.Project, sprint.ID,
+		))
 	// Move issues then active the next sprint.
 	moveIssuesToSprint(nextSprint.ID, pendingIssues)
 	updateSprintState(nextSprint.ID, "active")
