@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	"regexp"
 	"time"
 
-	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
 )
+
+var regexRepo = regexp.MustCompile("github\\.com\\/([^\\/]+\\/[^\\/]+)\\/")
 
 func newDailyCommand() *cobra.Command {
 	m := &cobra.Command{
@@ -20,46 +21,32 @@ func newDailyCommand() *cobra.Command {
 	return m
 }
 
-func plainFormatIssue(issue github.Issue) string {
-	s := fmt.Sprintf("%s %s", issue.GetHTMLURL(), issue.GetTitle())
-
-	if issue.Assignees != nil {
-		for _, assigne := range issue.Assignees {
-			s += fmt.Sprintf(" @%s", assigne.GetLogin())
-		}
-	}
-
-	return s
-}
-
-func plainFormatIssues(buf *bytes.Buffer, title string, issues []github.Issue) {
-	if len(issues) == 0 {
-		return
-	}
-
-	buf.WriteString(fmt.Sprintf("# %s\n", title))
-
-	for _, issue := range issues {
-		buf.WriteString(fmt.Sprintf("+ %s\n", plainFormatIssue(issue)))
-	}
-}
-
 func runDailyCommandFunc(cmd *cobra.Command, args []string) {
-	now := time.Now()
-	start := now.Add(-24 * time.Hour).Format(dayFormat)
-	end := now.Format(dayFormat)
+	now := time.Now().UTC()
+	start := now.Add(-24 * time.Hour).Format(githubUTCDateFormat)
 
 	var buf bytes.Buffer
-	issues := getCreatedIssues(start, end)
-	plainFormatIssues(&buf, "New Issues", issues)
+	buf.WriteString(".\n")
 
-	issues = getCreatedPullRequests(start, end)
-	plainFormatIssues(&buf, "New Pull Requests", issues)
+	issues := getCreatedIssues(start, nil)
+	formatSectionForSlackOutput(&buf, "New Issues", "New issues in last 24 hours")
+	formatGitHubIssuesForSlackOutput(&buf, issues)
+	buf.WriteString("\n")
 
-	msg := buf.String()
-	if len(msg) == 0 {
-		return
-	}
+	issues = getCreatedPullRequests(start, nil)
+	formatSectionForSlackOutput(&buf, "New Pull Requests", "New PRs in last 24 hours")
+	formatGitHubIssuesForSlackOutput(&buf, issues)
+	buf.WriteString("\n")
+
+	oncallIssues := queryJiraIssues("project = ONCALL AND created >= \"-1d\"")
+	formatSectionForSlackOutput(&buf, "New OnCalls", "New on calls in last 24 hours")
+	formatJiraIssuesForSlackOutput(&buf, oncallIssues)
+	buf.WriteString("\n")
+
+	oncallIssues = queryJiraIssues("project = ONCALL AND priority = Highest AND resolution = Unresolved AND updated <= \"-3d\"")
+	formatSectionForSlackOutput(&buf, "Inactive OnCalls", "Highest priority on calls inactive >= 3 days")
+	formatJiraIssuesForSlackOutput(&buf, oncallIssues)
+	buf.WriteString("\n")
 
 	sendToSlack(buf.String())
 }
