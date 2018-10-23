@@ -140,7 +140,7 @@ func moveIssuesToSprint(sprintID int, issues []jira.Issue) {
 			perror(err)
 
 			// clear buffer
-			buffer = make([]string, 0)
+			buffer = buffer[:0]
 		}
 	}
 }

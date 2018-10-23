@@ -153,11 +153,12 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
 			config.Jira.Project, sprint.ID,
 		))
-	// Move issues then active the next sprint.
-	moveIssuesToSprint(nextSprint.ID, pendingIssues)
-	updateSprintState(nextSprint.ID, "active")
-	// Then close the old sprint.
+	// Close the old sprint.
 	updateSprintState(sprint.ID, "closed")
+	// Move issues to the next sprint.
+	moveIssuesToSprint(nextSprint.ID, pendingIssues)
+	// Active the next sprint.
+	updateSprintState(nextSprint.ID, "active")
 	sendToSlack("close current active sprint %s", sprint.Name)
 }
 
