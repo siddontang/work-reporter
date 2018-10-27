@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"html"
 
-	"github.com/andygrunwald/go-jira"
+	jira "github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
 )
@@ -149,7 +149,16 @@ func runWeelyCommandFunc(cmd *cobra.Command, args []string) {
 	title := sprint.Name
 	createWeeklyReport(title, body.String())
 
+	pendingIssues := queryJiraIssues(
+		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
+			config.Jira.Project, sprint.ID,
+		))
+	// Close the old sprint.
 	updateSprintState(sprint.ID, "closed")
+	// Move issues to the next sprint.
+	moveIssuesToSprint(nextSprint.ID, pendingIssues)
+	// Active the next sprint.
+	updateSprintState(nextSprint.ID, "active")
 	sendToSlack("close current active sprint %s", sprint.Name)
 }
 

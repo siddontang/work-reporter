@@ -120,6 +120,31 @@ func updateSprint(sprintID int, args map[string]string) jira.Sprint {
 	return *responseSprint
 }
 
+// A pagination-aware alternative for SprintService.MoveIssuesToSprint.
+//
+// https://developer.atlassian.com/cloud/jira/software/rest/#api-rest-agile-1-0-sprint-sprintId-issue-post
+func moveIssuesToSprint(sprintID int, issues []jira.Issue) {
+	apiEndpoint := fmt.Sprintf("rest/agile/1.0/sprint/%d/issue", sprintID)
+
+	// The maximum number of issues that can be moved in one operation is 50.
+	batchMax := 50
+	buffer := make([]string, 0, batchMax)
+	total := len(issues)
+	for idx, ise := range issues {
+		buffer = append(buffer, ise.ID)
+		if len(buffer) == batchMax || idx+1 == total {
+			payload := jira.IssuesWrapper{Issues: buffer}
+			req, err := jiraClient.NewRequest("POST", apiEndpoint, payload)
+			perror(err)
+			_, err = jiraClient.Do(req, nil)
+			perror(err)
+
+			// clear buffer
+			buffer = buffer[:0]
+		}
+	}
+}
+
 func queryJiraIssues(jql string) []jira.Issue {
 	issues, _, err := jiraClient.Issue.Search(jql, &jira.SearchOptions{
 		MaxResults: 1000,
