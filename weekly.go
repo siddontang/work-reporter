@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"strings"
-	"time"
 
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
@@ -79,7 +78,7 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
 	activeSprint := getActiveSprint(boardID)
-	nextSprint := createNextSprint(boardID, (*activeSprint.EndDate).Add(24*time.Hour))
+	nextSprint := createNextSprint(boardID, *activeSprint.EndDate)
 
 	pendingIssues := queryJiraIssues(
 		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
