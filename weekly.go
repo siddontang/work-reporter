@@ -11,6 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const jiraLabelColorGrey = "Grey"
+const jiraLabelColorRed = "Red"
+const jiraLabelColorYellow = "Yellow"
+const jiraLabelColorGreen = "Green"
+const jiraLabelColorBlue = "Blue"
+
 func newWeeklyReportCommand() *cobra.Command {
 	m := &cobra.Command{
 		Use:   "report",
@@ -49,8 +55,8 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	startDate := lastSprint.StartDate.Format(dayFormat)
 	endDate := lastSprint.EndDate.Format(dayFormat)
 
-	githubStartDate := lastSprint.StartDate.Format(githubUTCDateFormat)
-	githubEndDate := lastSprint.EndDate.Format(githubUTCDateFormat)
+	githubStartDate := lastSprint.StartDate.UTC().Format(githubUTCDateFormat)
+	githubEndDate := lastSprint.EndDate.UTC().Format(githubUTCDateFormat)
 
 	formatPageBeginForHtmlOutput(&body)
 	genWeeklyReportToc(&body)
@@ -70,8 +76,6 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	formatPageEndForHtmlOutput(&body)
 
 	title := lastSprint.Name
-	fmt.Println(body.String())
-
 	createWeeklyReport(title, body.String())
 }
 
@@ -111,6 +115,15 @@ func formatSectionEndForHtmlOutput(buf *bytes.Buffer) {
 	buf.WriteString("\n")
 }
 
+func formatLabelForHtmlOutput(name string, color string) string {
+	s := fmt.Sprintf(`
+	<ac:structured-macro ac:macro-id="9f29312a-2730-48f0-ab6d-91d6bef3f016" ac:name="status" ac:schema-version="1">
+		<ac:parameter ac:name="colour">%s</ac:parameter>
+		<ac:parameter ac:name="title">%s</ac:parameter>
+	</ac:structured-macro>`, color, html.EscapeString(name))
+	return s
+}
+
 func formatGitHubIssueForHtmlOutput(issue github.Issue) string {
 	isFromTeam := false
 	login := issue.GetUser().GetLogin()
@@ -121,20 +134,15 @@ func formatGitHubIssueForHtmlOutput(issue github.Issue) string {
 			break
 		}
 	}
-	var tp string
-	if !isFromTeam {
-		tp = " <i>(Community)</i>"
-	}
-	var closed string
+
+	var labelColor = jiraLabelColorGrey
 	if issue.GetState() == "closed" {
-		closed = " <i>(Closed)</i>"
+		labelColor = jiraLabelColorGreen
 	}
 
 	s := fmt.Sprintf(
-		"[ %s ]%s%s <a href=\"%s\">%s</a> by @%s",
-		html.EscapeString(regexRepo.FindStringSubmatch(issue.GetHTMLURL())[1]),
-		closed,
-		tp,
+		`%s <a href="%s">%s</a> by @%s`,
+		formatLabelForHtmlOutput(regexRepo.FindStringSubmatch(issue.GetHTMLURL())[1], labelColor),
 		issue.GetHTMLURL(),
 		html.EscapeString(issue.GetTitle()),
 		html.EscapeString(issue.GetUser().GetLogin()),
@@ -145,6 +153,10 @@ func formatGitHubIssueForHtmlOutput(issue github.Issue) string {
 		for _, assigne := range issue.Assignees {
 			s += fmt.Sprintf(" @%s", assigne.GetLogin())
 		}
+	}
+
+	if !isFromTeam {
+		s += " " + formatLabelForHtmlOutput("Community", jiraLabelColorBlue)
 	}
 
 	return s
@@ -195,17 +207,19 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 	formatSectionBeginForHtmlOutput(buf)
 
 	buf.WriteString("\n<h1>New OnCall</h1>\n")
+	buf.WriteString(fmt.Sprintf("\n<blockquote>Newly created OnCalls (created &gt;= %s AND created &lt; %s)</blockquote>\n", start, end))
 	html := `
 <ac:structured-macro ac:name="jira">
   <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
   <ac:parameter ac:name="server">%s</ac:parameter>
   <ac:parameter ac:name="serverId">%s</ac:parameter>
-  <ac:parameter ac:name="jqlQuery">project = %s AND created >= %s AND created &lt; %s</ac:parameter>
+  <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
 </ac:structured-macro>
 `
 	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
 
 	buf.WriteString("\n<h1>Highest Priority</h1>\n")
+	buf.WriteString("\n<blockquote>Unresolved highest priority OnCalls (priority = Highest AND resolution = Unresolved)</blockquote>\n")
 	html = `
 <ac:structured-macro ac:name="jira">
   <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
@@ -223,9 +237,11 @@ func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 	formatSectionBeginForHtmlOutput(buf)
 	issues := getCreatedIssues(start, &end)
 	buf.WriteString("\n<h1>New Issues</h1>\n")
+	buf.WriteString(fmt.Sprintf("\n<blockquote>New GitHub issues (created: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, issues)
 	prs := getCreatedPullRequests(start, &end)
 	buf.WriteString("\n<h1>New PRs</h1>\n")
+	buf.WriteString(fmt.Sprintf("\n<blockquote>New GitHub PRs (created: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, prs)
 	formatSectionEndForHtmlOutput(buf)
 }
