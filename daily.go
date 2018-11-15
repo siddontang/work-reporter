@@ -26,7 +26,7 @@ func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	start := now.Add(-24 * time.Hour).Format(githubUTCDateFormat)
 
 	var buf bytes.Buffer
-	buf.WriteString(".\n")
+	buf.WriteString("*Daily Report*\n\n")
 
 	issues := getCreatedIssues(start, nil)
 	formatSectionForSlackOutput(&buf, "New Issues", "New issues in last 24 hours")
