@@ -48,6 +48,54 @@ func getActiveSprint(boardID int) jira.Sprint {
 	return sprints[0]
 }
 
+func getLatestPassedSprint(boardID int) *jira.Sprint {
+	sprints, _, err := jiraClient.Board.GetAllSprints(strconv.Itoa(boardID))
+	perror(err)
+
+	now := time.Now()
+	minDiff := time.Hour * 7 * 24
+	var minSprint *jira.Sprint
+	for idx, sprint := range sprints {
+		// 1. Sprint Start Date < Now
+		// 2. Sprint End Date < Now
+		// 3. Min(Now - Sprint End Date)
+		if sprint.StartDate.After(now) {
+			continue
+		}
+		if sprint.EndDate.After(now) {
+			continue
+		}
+		diff := now.Sub(*sprint.EndDate)
+		if diff < minDiff {
+			minSprint = &sprints[idx]
+		}
+	}
+
+	return minSprint
+}
+
+func getNearestFutureSprint(boardID int) *jira.Sprint {
+	sprints, _, err := jiraClient.Board.GetAllSprints(strconv.Itoa(boardID))
+	perror(err)
+
+	now := time.Now()
+	minDiff := time.Hour * 7 * 24
+	var minSprint *jira.Sprint
+	for idx, sprint := range sprints {
+		// 1. Sprint End Date > Now
+		// 2. Min(Sprint Start Date - Now)
+		if sprint.EndDate.Before(now) {
+			continue
+		}
+		diff := (*sprint.StartDate).Sub(now)
+		if diff < minDiff {
+			minSprint = &sprints[idx]
+		}
+	}
+
+	return minSprint
+}
+
 func createSprint(boardID int, name string, startDate, endDate string) jira.Sprint {
 	apiEndpoint := "rest/agile/1.0/sprint"
 	sprint := map[string]string{
