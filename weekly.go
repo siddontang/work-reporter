@@ -239,7 +239,6 @@ func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 	buf.WriteString("\n<h1>New Issues</h1>\n")
 	buf.WriteString(fmt.Sprintf("\n<blockquote>New GitHub issues (created: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, issues)
-	prs := getCreatedPullRequests(start, &end)
 	formatSectionEndForHtmlOutput(buf)
 }
 
