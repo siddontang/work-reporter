@@ -93,6 +93,13 @@ func getCreatedPullRequests(start string, end *string) []github.Issue {
 	})
 }
 
+func getMergedPullRequests(start string, end *string) []github.Issue {
+	return getIssues("created", map[string]string{
+		"is":     "merged",
+		"merged": generateDateRangeQuery(start, end),
+	})
+}
+
 func getReviewPullRequests(user string, start string, end *string) []github.Issue {
 	return getIssues("updated", map[string]string{
 		"is":        "pr",
