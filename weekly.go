@@ -47,8 +47,9 @@ func newWeeklyCommand() *cobra.Command {
 
 func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
-	lastSprint := getLatestPassedSprint(boardID)
-	nextSprint := getNearestFutureSprint(boardID)
+	sprints := getSprints(boardID, jira.GetAllSprintsOptions{})
+	lastSprint := getLatestPassedSprint(sprints)
+	nextSprint := getNearestFutureSprint(sprints)
 
 	var body bytes.Buffer
 

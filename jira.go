@@ -30,28 +30,40 @@ func getBoardID(project string, boardType string) int {
 	return boards.Values[0].ID
 }
 
-func getSprints(boardID int, state string) []jira.Sprint {
-	opts := jira.GetAllSprintsOptions{
-		State: state,
+func getSprints(boardID int, opts jira.GetAllSprintsOptions) []jira.Sprint {
+	var allSprints []jira.Sprint
+
+	pos := 0
+	for {
+		nextOpts := &jira.GetAllSprintsOptions{
+			State: opts.State,
+			SearchOptions: jira.SearchOptions{
+				StartAt:    pos,
+				MaxResults: 100,
+			},
+		}
+		results, _, err := jiraClient.Board.GetAllSprintsWithOptions(boardID, nextOpts)
+		perror(err)
+		allSprints = append(allSprints, results.Values...)
+
+		if results.IsLast {
+			break
+		}
+		pos += len(results.Values)
 	}
 
-	// TODO: support pagination
-	sprints, _, err := jiraClient.Board.GetAllSprintsWithOptions(boardID, &opts)
-	perror(err)
-
-	return sprints.Values
+	return allSprints
 }
 
 // Returns the only active sprint
 func getActiveSprint(boardID int) jira.Sprint {
-	sprints := getSprints(boardID, "active")
+	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
+		State: "active",
+	})
 	return sprints[0]
 }
 
-func getLatestPassedSprint(boardID int) *jira.Sprint {
-	sprints, _, err := jiraClient.Board.GetAllSprints(strconv.Itoa(boardID))
-	perror(err)
-
+func getLatestPassedSprint(sprints []jira.Sprint) *jira.Sprint {
 	now := time.Now()
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
@@ -74,10 +86,7 @@ func getLatestPassedSprint(boardID int) *jira.Sprint {
 	return minSprint
 }
 
-func getNearestFutureSprint(boardID int) *jira.Sprint {
-	sprints, _, err := jiraClient.Board.GetAllSprints(strconv.Itoa(boardID))
-	perror(err)
-
+func getNearestFutureSprint(sprints []jira.Sprint) *jira.Sprint {
 	now := time.Now()
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
@@ -123,7 +132,9 @@ func createNextSprint(boardID int, startDate time.Time) jira.Sprint {
 
 	name := fmt.Sprintf("%s - %s", startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
 
-	sprints := getSprints(boardID, "future")
+	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
+		State: "future",
+	})
 	for _, sprint := range sprints {
 		if sprint.Name == name {
 			return sprint
