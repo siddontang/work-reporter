@@ -71,42 +71,67 @@ func getIssues(bySort string, queryArgs map[string]string) IssueSlice {
 	return allIssues
 }
 
-func generateDateRangeQuery(start string, end *string) string {
-	if end != nil {
-		return fmt.Sprintf("%s..%s", start, *end)
+func generateDateRangeQuery(start *string, end *string) string {
+	if start != nil && end != nil {
+		return fmt.Sprintf("%s..%s", *start, *end)
+	} else if start != nil && end == nil {
+		return fmt.Sprintf(">=%s", *start)
+	} else if start == nil && end != nil {
+		return fmt.Sprintf("<%s", *end)
 	} else {
-		return fmt.Sprintf(">=%s", start)
+		panic("start and end can not be nil at the same time")
 	}
 }
 
-func getCreatedIssues(start string, end *string) []github.Issue {
+func getCreatedIssues(start *string, end *string) []github.Issue {
 	return getIssues("created", map[string]string{
 		"is":      "issue",
 		"created": generateDateRangeQuery(start, end),
 	})
 }
 
-func getCreatedPullRequests(start string, end *string) []github.Issue {
+func getCreatedPullRequests(start *string, end *string) []github.Issue {
 	return getIssues("created", map[string]string{
 		"is":      "pr",
 		"created": generateDateRangeQuery(start, end),
 	})
 }
 
-func getMergedPullRequests(start string, end *string) []github.Issue {
+func getMergedPullRequests(start *string, end *string) []github.Issue {
 	return getIssues("created", map[string]string{
 		"is":     "merged",
 		"merged": generateDateRangeQuery(start, end),
 	})
 }
 
-func getReviewPullRequests(user string, start string, end *string) []github.Issue {
+func getReviewPullRequests(user string, start *string, end *string) []github.Issue {
 	return getIssues("updated", map[string]string{
 		"is":        "pr",
 		"commenter": user,
 		"-author":   user,
 		"updated":   generateDateRangeQuery(start, end),
 	})
+}
+
+func getInactiveCommunityPullRequests(start *string, end *string) []github.Issue {
+	openPullRequests := getIssues("updated", map[string]string{
+		"is":      "pr",
+		"state":   "open",
+		"updated": generateDateRangeQuery(start, end),
+	})
+
+	communityPullRequests := make([]github.Issue, 0, len(openPullRequests))
+nextOpenIssue:
+	for _, issue := range openPullRequests {
+		login := issue.GetUser().GetLogin()
+		for _, id := range allMembers {
+			if strings.EqualFold(id, login) {
+				continue nextOpenIssue
+			}
+		}
+		communityPullRequests = append(communityPullRequests, issue)
+	}
+	return communityPullRequests
 }
 
 func initRepoQuery() {

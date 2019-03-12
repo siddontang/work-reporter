@@ -28,13 +28,19 @@ func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	var buf bytes.Buffer
 	buf.WriteString("*Daily Report*\n\n")
 
-	issues := getCreatedIssues(start, nil)
+	issues := getCreatedIssues(&start, nil)
 	formatSectionForSlackOutput(&buf, "New Issues", "New issues in last 24 hours")
 	formatGitHubIssuesForSlackOutput(&buf, issues)
 	buf.WriteString("\n")
 
-	issues = getCreatedPullRequests(start, nil)
+	issues = getCreatedPullRequests(&start, nil)
 	formatSectionForSlackOutput(&buf, "New Pull Requests", "New PRs in last 24 hours")
+	formatGitHubIssuesForSlackOutput(&buf, issues)
+	buf.WriteString("\n")
+
+	last3Days := now.Add(-3 * 24 * time.Hour).Format(githubUTCDateFormat)
+	issues = getInactiveCommunityPullRequests(nil, &last3Days)
+	formatSectionForSlackOutput(&buf, "Inactive Community Pull Requests", "Community PRs inactive >= 3 days")
 	formatGitHubIssuesForSlackOutput(&buf, issues)
 	buf.WriteString("\n")
 

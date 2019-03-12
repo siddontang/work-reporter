@@ -194,7 +194,7 @@ func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint) {
 
 func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
 	buf.WriteString("<h3>Review PR</h3>")
-	issues := getReviewPullRequests(user, start, &end)
+	issues := getReviewPullRequests(user, &start, &end)
 	formatGitHubIssuesForHtmlOutput(buf, issues)
 }
 
@@ -230,11 +230,11 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 
 func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 	formatSectionBeginForHtmlOutput(buf)
-	issues := getCreatedIssues(start, &end)
+	issues := getCreatedIssues(&start, &end)
 	buf.WriteString("\n<h1>New Issues</h1>\n")
 	buf.WriteString(fmt.Sprintf("\n<blockquote>New GitHub issues (created: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, issues)
-	prs := getMergedPullRequests(start, &end)
+	prs := getMergedPullRequests(&start, &end)
 	buf.WriteString("\n<h1>Merged PRs</h1>\n")
 	buf.WriteString(fmt.Sprintf("\n<blockquote>Merged GitHub PRs (merged: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, prs)
