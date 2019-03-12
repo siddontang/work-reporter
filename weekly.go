@@ -49,7 +49,6 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{})
 	lastSprint := getLatestPassedSprint(sprints)
-	nextSprint := getNearestFutureSprint(sprints)
 
 	var body bytes.Buffer
 
@@ -69,7 +68,7 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 		formatSectionBeginForHtmlOutput(&body)
 		body.WriteString(fmt.Sprintf("<h1>%s Team</h1>", team.Name))
 		for _, m := range team.Members {
-			genWeeklyUserPage(&body, m, *lastSprint, *nextSprint)
+			genWeeklyUserPage(&body, m, *lastSprint)
 		}
 		formatSectionEndForHtmlOutput(&body)
 	}
@@ -175,9 +174,8 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
-func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint jira.Sprint) {
+func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint) {
 	sprintID := curSprint.ID
-	nextSprintID := nextSprint.ID
 
 	html := `
 <ac:structured-macro ac:name="jira">
@@ -192,10 +190,6 @@ func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextS
 	buf.WriteString("\n<h3>Work</h3>\n")
 	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, sprintID, m.Email))
 	genReviewPullRequests(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
-	if nextSprintID > 0 {
-		buf.WriteString("\n<h3>Next Week</h3>\n")
-		buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, nextSprintID, m.Email))
-	}
 }
 
 func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
