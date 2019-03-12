@@ -85,14 +85,14 @@ func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
 	activeSprint := getActiveSprint(boardID)
 	nextSprint := createNextSprint(boardID, *activeSprint.EndDate)
 
-	pendingIssues := queryJiraIssues(
-		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
-			config.Jira.Project, activeSprint.ID,
-		))
 	// Close the old sprint.
 	updateSprintState(activeSprint.ID, "closed")
 	// Move issues to the next sprint.
-	moveIssuesToSprint(nextSprint.ID, pendingIssues)
+	// pendingIssues := queryJiraIssues(
+	// 	fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
+	// 		config.Jira.Project, activeSprint.ID,
+	// 	))
+	// moveIssuesToSprint(nextSprint.ID, pendingIssues)
 	// Active the next sprint.
 	updateSprintState(nextSprint.ID, "active")
 	sendToSlack("Current active Sprint %s is closed", activeSprint.Name)
