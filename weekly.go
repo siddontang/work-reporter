@@ -63,15 +63,30 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	genWeeklyReportToc(&body)
 	genWeeklyReportOnCall(&body, startDate, endDate)
 	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
+	genWeeklyReportProjects(&body, lastSprint)
 
 	for _, team := range config.Teams {
 		fmt.Println(team.Name)
 		formatSectionBeginForHtmlOutput(&body)
 		body.WriteString(fmt.Sprintf("<h1>%s Team</h1>", team.Name))
-		for _, m := range team.Members {
-			genWeeklyUserPage(&body, m, *lastSprint, *nextSprint)
-		}
 		formatSectionEndForHtmlOutput(&body)
+		for _, m := range team.Members {
+			formatSectionBeginForHtmlOutput(&body)
+			genWeeklyUserPage(&body, m, *lastSprint, *nextSprint)
+			formatSectionEndForHtmlOutput(&body)
+		}
+	}
+
+	formatSectionBeginForHtmlOutput(&body)
+	body.WriteString("<h1>PR Review</h1>")
+	formatSectionEndForHtmlOutput(&body)
+	for _, team := range config.Teams {
+		for _, m := range team.Members {
+			formatSectionBeginForHtmlOutput(&body)
+			body.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Github))
+			genReviewPullRequests(&body, m.Github, lastSprint.StartDate.Format(dayFormat), nextSprint.EndDate.Format(dayFormat))
+			formatSectionEndForHtmlOutput(&body)
+		}
 	}
 
 	formatPageEndForHtmlOutput(&body)
@@ -85,14 +100,8 @@ func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
 	activeSprint := getActiveSprint(boardID)
 	nextSprint := createNextSprint(boardID, *activeSprint.EndDate)
 
-	pendingIssues := queryJiraIssues(
-		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
-			config.Jira.Project, activeSprint.ID,
-		))
 	// Close the old sprint.
 	updateSprintState(activeSprint.ID, "closed")
-	// Move issues to the next sprint.
-	moveIssuesToSprint(nextSprint.ID, pendingIssues)
 	// Active the next sprint.
 	updateSprintState(nextSprint.ID, "active")
 	sendToSlack("Current active Sprint %s is closed", activeSprint.Name)
@@ -176,26 +185,11 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 }
 
 func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint jira.Sprint) {
-	sprintID := curSprint.ID
-	nextSprintID := nextSprint.ID
-
-	html := `
-<ac:structured-macro ac:name="jira">
-  <ac:parameter ac:name="columns">key,summary,created,updated,priority,status</ac:parameter>
-  <ac:parameter ac:name="server">%s</ac:parameter>
-  <ac:parameter ac:name="serverId">%s</ac:parameter>
-  <ac:parameter ac:name="jqlQuery">project = TIKV AND sprint = %d AND assignee = "%s"</ac:parameter>
-</ac:structured-macro>
-`
-
 	buf.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Name))
 	buf.WriteString("\n<h3>Work</h3>\n")
-	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, sprintID, m.Email))
-	genReviewPullRequests(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
-	if nextSprintID > 0 {
-		buf.WriteString("\n<h3>Next Week</h3>\n")
-		buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, nextSprintID, m.Email))
-	}
+	buf.WriteString("\n<p>Please fill this section</p>\n")
+	buf.WriteString("\n<h3>Next Week</h3>\n")
+	buf.WriteString("\n<p>Please fill this section</p>\n")
 }
 
 func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
@@ -244,6 +238,83 @@ func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 	buf.WriteString("\n<h1>Merged PRs</h1>\n")
 	buf.WriteString(fmt.Sprintf("\n<blockquote>Merged GitHub PRs (merged: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, prs)
+	formatSectionEndForHtmlOutput(buf)
+}
+
+func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString("\n<h1>Projects</h1>\n")
+	epicQuery := `project = %s and "Epic Link" is not EMPTY and Sprint = %d`
+	epicIssues := queryJiraIssues(fmt.Sprintf(epicQuery, config.Jira.Project, sprint.ID))
+	// Epic link  -> issues belong to the epic.
+	epics := make(map[string]*[]jira.Issue)
+	for _, is := range epicIssues {
+		// The magic name of epic link field.
+		const epicLinkField = "customfield_10100"
+		epicLink := is.Fields.Unknowns[epicLinkField].(string)
+		if iss, ok := epics[epicLink]; ok {
+			*iss = append(*iss, is)
+		} else {
+			epics[epicLink] = &[]jira.Issue{is}
+		}
+	}
+
+	projects := `
+<table class="relative-table wrapped">
+  <tbody>
+  <tr>
+    <th>Name</th>
+    <th>Purpose</th>
+    <th colspan="1">
+      <p>Links</p>
+    </th>
+    <th>Manager</th>
+    <th>Collaborators</th>
+    <th colspan="1">Start Date</th>
+    <th colspan="1">
+      <p>Description</p>
+      <p>(Progress, Problems, Outcomes, etc...)</p>
+    </th>
+  </tr>
+  %s
+  </tbody>
+</table>`
+
+	projectsBuf := bytes.Buffer{}
+	for ep, iss := range epics {
+		link := `
+        <p>
+          <ac:structured-macro ac:name="jira" ac:schema-version="1"
+            ac:macro-id="c25da3bb-9daf-41bb-9b8a-a62268146dfd">
+            <ac:parameter ac:name="server">%s</ac:parameter>
+            <ac:parameter ac:name="serverId">5fd1b18a-d6cc-3da2-afe4-687c022f0b9c</ac:parameter>
+            <ac:parameter ac:name="key">%s</ac:parameter>
+          </ac:structured-macro>
+        </p>`
+		linksBuf := bytes.Buffer{}
+		for _, is := range *iss {
+			linksBuf.WriteString(fmt.Sprintf(link, config.Jira.Server, is.Key))
+		}
+
+		project := `
+        <tr>
+          <td colspan="1">%s</td>
+          <td colspan="1">%s</td>
+          <td colspan="1"><div class="content-wrapper">%s</div></td>
+          <td colspan="1"><br /></td>
+          <td colspan="1"><br /></td>
+          <td colspan="1"><br /></td>
+          <td colspan="1"><br /></td>
+        </tr>`
+		epic, _, err := jiraClient.Issue.Get(ep, nil)
+		perror(err)
+		// The magic name of epic name field.
+		const epicNameField = "customfield_10102"
+		epicName := html.EscapeString(epic.Fields.Unknowns[epicNameField].(string))
+		projectsBuf.WriteString(fmt.Sprintf(project, epicName, epic.Fields.Summary, linksBuf.String()))
+	}
+
+	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
 	formatSectionEndForHtmlOutput(buf)
 }
 
