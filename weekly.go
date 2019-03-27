@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"time"
 
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
@@ -49,7 +50,6 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{})
 	lastSprint := getLatestPassedSprint(sprints)
-	nextSprint := getNearestFutureSprint(sprints)
 
 	var body bytes.Buffer
 
@@ -60,34 +60,11 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	githubEndDate := lastSprint.EndDate.UTC().Format(githubUTCDateFormat)
 
 	formatPageBeginForHtmlOutput(&body)
+
 	genWeeklyReportToc(&body)
 	genWeeklyReportOnCall(&body, startDate, endDate)
 	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
 	genWeeklyReportProjects(&body, lastSprint)
-
-	for _, team := range config.Teams {
-		fmt.Println(team.Name)
-		formatSectionBeginForHtmlOutput(&body)
-		body.WriteString(fmt.Sprintf("<h1>%s Team</h1>", team.Name))
-		formatSectionEndForHtmlOutput(&body)
-		for _, m := range team.Members {
-			formatSectionBeginForHtmlOutput(&body)
-			genWeeklyUserPage(&body, m, *lastSprint, *nextSprint)
-			formatSectionEndForHtmlOutput(&body)
-		}
-	}
-
-	formatSectionBeginForHtmlOutput(&body)
-	body.WriteString("<h1>PR Review</h1>")
-	formatSectionEndForHtmlOutput(&body)
-	for _, team := range config.Teams {
-		for _, m := range team.Members {
-			formatSectionBeginForHtmlOutput(&body)
-			body.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Github))
-			genReviewPullRequests(&body, m.Github, lastSprint.StartDate.Format(dayFormat), nextSprint.EndDate.Format(dayFormat))
-			formatSectionEndForHtmlOutput(&body)
-		}
-	}
 
 	formatPageEndForHtmlOutput(&body)
 
@@ -184,7 +161,7 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
-func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint jira.Sprint) {
+func genWeeklyUserPage(buf *bytes.Buffer, m Member) {
 	buf.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Name))
 	buf.WriteString("\n<h3>Work</h3>\n")
 	buf.WriteString("\n<p>Please fill this section</p>\n")
@@ -246,17 +223,13 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 	buf.WriteString("\n<h1>Projects</h1>\n")
 	epicQuery := `project = %s and "Epic Link" is not EMPTY and Sprint = %d`
 	epicIssues := queryJiraIssues(fmt.Sprintf(epicQuery, config.Jira.Project, sprint.ID))
-	// Epic link  -> issues belong to the epic.
-	epics := make(map[string]*[]jira.Issue)
+	// An epic link set.
+	epics := make(map[string]struct{})
 	for _, is := range epicIssues {
 		// The magic name of epic link field.
 		const epicLinkField = "customfield_10100"
 		epicLink := is.Fields.Unknowns[epicLinkField].(string)
-		if iss, ok := epics[epicLink]; ok {
-			*iss = append(*iss, is)
-		} else {
-			epics[epicLink] = &[]jira.Issue{is}
-		}
+		epics[epicLink] = struct{}{}
 	}
 
 	projects := `
@@ -265,53 +238,45 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
   <tr>
     <th>Name</th>
     <th>Purpose</th>
-    <th colspan="1">
-      <p>Links</p>
-    </th>
+    <th><p>Links</p></th>
     <th>Manager</th>
     <th>Collaborators</th>
-    <th colspan="1">Start Date</th>
-    <th colspan="1">
-      <p>Description</p>
-      <p>(Progress, Problems, Outcomes, etc...)</p>
-    </th>
+    <th>Start Date</th>
+    <th><p>Description</p></th>
   </tr>
   %s
   </tbody>
 </table>`
 
 	projectsBuf := bytes.Buffer{}
-	for ep, iss := range epics {
-		link := `
-        <p>
-          <ac:structured-macro ac:name="jira" ac:schema-version="1"
-            ac:macro-id="c25da3bb-9daf-41bb-9b8a-a62268146dfd">
-            <ac:parameter ac:name="server">%s</ac:parameter>
-            <ac:parameter ac:name="serverId">5fd1b18a-d6cc-3da2-afe4-687c022f0b9c</ac:parameter>
-            <ac:parameter ac:name="key">%s</ac:parameter>
-          </ac:structured-macro>
-        </p>`
-		linksBuf := bytes.Buffer{}
-		for _, is := range *iss {
-			linksBuf.WriteString(fmt.Sprintf(link, config.Jira.Server, is.Key))
-		}
+	for ep := range epics {
+		epIssuesTemplate := `
+    <ac:structured-macro ac:name="jira">
+      <ac:parameter ac:name="columns">key,summary,assignee,status</ac:parameter>
+      <ac:parameter ac:name="server">%s</ac:parameter>
+      <ac:parameter ac:name="serverId">%s</ac:parameter>
+      <ac:parameter ac:name="jqlQuery">project = %s and "Epic Link" = %s and Sprint = %d</ac:parameter>
+    </ac:structured-macro>`
+		epIssues := fmt.Sprintf(epIssuesTemplate,
+			config.Jira.Server, config.Jira.ServerID, config.Jira.Project, ep, sprint.ID)
 
-		project := `
-        <tr>
-          <td colspan="1">%s</td>
-          <td colspan="1">%s</td>
-          <td colspan="1"><div class="content-wrapper">%s</div></td>
-          <td colspan="1"><br /></td>
-          <td colspan="1"><br /></td>
-          <td colspan="1"><br /></td>
-          <td colspan="1"><br /></td>
-        </tr>`
+		projectTemplate := `
+    <tr>
+      <td>%s</td>
+      <td>%s</td>
+      <td><div class="content-wrapper">%s</div></td>
+      <td><ac:link><ri:user ri:username="%s" /></ac:link></td>
+      <td><br /></td>
+      <td><time datetime="%s"/></td>
+      <td><br /></td>
+    </tr>`
 		epic, _, err := jiraClient.Issue.Get(ep, nil)
 		perror(err)
 		// The magic name of epic name field.
 		const epicNameField = "customfield_10102"
 		epicName := html.EscapeString(epic.Fields.Unknowns[epicNameField].(string))
-		projectsBuf.WriteString(fmt.Sprintf(project, epicName, epic.Fields.Summary, linksBuf.String()))
+		projectsBuf.WriteString(fmt.Sprintf(projectTemplate,
+			epicName, epic.Fields.Summary, epIssues, epic.Fields.Assignee.Name, time.Time(epic.Fields.Created).Format(dayFormat)))
 	}
 
 	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
@@ -344,6 +309,14 @@ func createWeeklyReport(title string, value string) {
 	} else {
 		parent := getContentByTitle(space, config.Confluence.WeeklyPath)
 		c = createContent(space, parent.Id, title, value)
+		for _, team := range config.Teams {
+			for _, m := range team.Members {
+				body := bytes.Buffer{}
+				genWeeklyUserPage(&body, m)
+				userTitle := fmt.Sprintf("%s - %s", m.Name, title)
+				createContent(space, c.Id, userTitle, body.String())
+			}
+		}
 	}
 
 	sendToSlack("Weekly report for sprint %s is generated: %s%s", title, config.Confluence.Endpoint, c.Links.WebUI)
