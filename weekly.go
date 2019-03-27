@@ -68,8 +68,7 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 
 	formatPageEndForHtmlOutput(&body)
 
-	title := lastSprint.Name
-	createWeeklyReport(title, body.String())
+	createWeeklyReport(lastSprint, body.String())
 }
 
 func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
@@ -161,12 +160,31 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
-func genWeeklyUserPage(buf *bytes.Buffer, m Member) {
-	buf.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Name))
+func genWeeklyUserPage(buf *bytes.Buffer, m Member, sprint *jira.Sprint) {
+	formatPageBeginForHtmlOutput(buf)
+
+	formatSectionBeginForHtmlOutput(buf)
 	buf.WriteString("\n<h3>Work</h3>\n")
+	buf.WriteString("\n<blockquote>A summary of my work in this week</blockquote>\n")
 	buf.WriteString("\n<p>Please fill this section</p>\n")
 	buf.WriteString("\n<h3>Next Week</h3>\n")
+	buf.WriteString("\n<blockquote>A plan of the next week</blockquote>\n")
 	buf.WriteString("\n<p>Please fill this section</p>\n")
+	formatSectionEndForHtmlOutput(buf)
+
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString("\n<h3>Issues in this week</h3>\n")
+	template := `
+<ac:structured-macro ac:name="jira">
+  <ac:parameter ac:name="columns">key,summary,created,updated,status</ac:parameter>
+  <ac:parameter ac:name="server">%s</ac:parameter>
+  <ac:parameter ac:name="serverId">%s</ac:parameter>
+  <ac:parameter ac:name="jqlQuery">project = %s AND Sprint = %d AND assignee = "%s"</ac:parameter>
+</ac:structured-macro>`
+	buf.WriteString(fmt.Sprintf(template, config.Jira.Server, config.Jira.ServerID, config.Jira.Project, sprint.ID, m.Email))
+	formatSectionEndForHtmlOutput(buf)
+
+	formatPageEndForHtmlOutput(buf)
 }
 
 func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
@@ -300,7 +318,8 @@ func genWeeklyReportToc(buf *bytes.Buffer) {
 	formatSectionEndForHtmlOutput(buf)
 }
 
-func createWeeklyReport(title string, value string) {
+func createWeeklyReport(sprint *jira.Sprint, value string) {
+	title := sprint.Name
 	space := config.Confluence.Space
 	c := getContentByTitle(space, title)
 
@@ -312,7 +331,7 @@ func createWeeklyReport(title string, value string) {
 		for _, team := range config.Teams {
 			for _, m := range team.Members {
 				body := bytes.Buffer{}
-				genWeeklyUserPage(&body, m)
+				genWeeklyUserPage(&body, m, sprint)
 				userTitle := fmt.Sprintf("%s - %s", m.Name, title)
 				createContent(space, c.Id, userTitle, body.String())
 			}
