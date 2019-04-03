@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"strings"
-	"time"
 
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/google/go-github/github"
@@ -255,11 +254,8 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
   <tbody>
   <tr>
     <th>Name</th>
-    <th>Purpose</th>
     <th><p>Links</p></th>
-    <th>Manager</th>
-    <th>Collaborators</th>
-    <th>Start Date</th>
+    <th>Manager(*) &amp; Collaborators</th>
     <th><p>Description</p></th>
   </tr>
   %s
@@ -281,11 +277,8 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 		projectTemplate := `
     <tr>
       <td>%s</td>
-      <td>%s</td>
       <td><div class="content-wrapper">%s</div></td>
-      <td><ac:link><ri:user ri:username="%s" /></ac:link></td>
-      <td><br /></td>
-      <td><time datetime="%s"/></td>
+      <td>%s</td>
       <td><br /></td>
     </tr>`
 		epic, _, err := jiraClient.Issue.Get(ep, nil)
@@ -293,8 +286,23 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 		// The magic name of epic name field.
 		const epicNameField = "customfield_10102"
 		epicName := html.EscapeString(epic.Fields.Unknowns[epicNameField].(string))
+		userTemplate := `<ac:link><ri:user ri:username="%s" /></ac:link>`
+		// Manager
+		participantsBuf := bytes.Buffer{}
+		participantsBuf.WriteString(fmt.Sprintf(userTemplate, epic.Fields.Assignee.Name) + "*")
+		// The magic name of collaborators field.
+		const collaboratorsField = "customfield_10949"
+		if field, ok := epic.Fields.Unknowns[collaboratorsField]; ok && field != nil {
+			for _, user := range field.([]interface{}) {
+				if user != nil {
+					name := user.(map[string]interface{})["name"].(string)
+					participantsBuf.WriteString("<br />")
+					participantsBuf.WriteString(fmt.Sprintf(userTemplate, name))
+				}
+			}
+		}
 		projectsBuf.WriteString(fmt.Sprintf(projectTemplate,
-			epicName, epic.Fields.Summary, epIssues, epic.Fields.Assignee.Name, time.Time(epic.Fields.Created).Format(dayFormat)))
+			epicName, epIssues, participantsBuf.String()))
 	}
 
 	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
