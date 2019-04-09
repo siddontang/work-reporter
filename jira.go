@@ -130,7 +130,7 @@ func createNextSprint(boardID int, startDate time.Time) jira.Sprint {
 	// The sprint name is 2018-10-05 - 2018-10-11
 	endDate := startDate.Add(sprintDuration)
 
-	name := fmt.Sprintf("%s - %s", startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
+	name := fmt.Sprintf("%s %s - %s", config.Jira.Project, startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
 
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
 		State: "future",
