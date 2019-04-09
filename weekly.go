@@ -236,8 +236,6 @@ func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 }
 
 func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
-	formatSectionBeginForHtmlOutput(buf)
-	buf.WriteString("\n<h1>Projects</h1>\n")
 	epicQuery := `project = %s and "Epic Link" is not EMPTY and Sprint = %d`
 	epicIssues := queryJiraIssues(fmt.Sprintf(epicQuery, config.Jira.Project, sprint.ID))
 	// An epic link set.
@@ -249,24 +247,10 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 		epics[epicLink] = struct{}{}
 	}
 
-	projects := `
-<table class="relative-table wrapped">
-  <tbody>
-  <tr>
-    <th>Name</th>
-    <th><p>Links</p></th>
-    <th>Manager(*) &amp; Collaborators</th>
-    <th><p>Description</p></th>
-  </tr>
-  %s
-  </tbody>
-</table>`
-
-	projectsBuf := bytes.Buffer{}
 	for ep := range epics {
 		epIssuesTemplate := `
     <ac:structured-macro ac:name="jira">
-      <ac:parameter ac:name="columns">key,summary,assignee,status</ac:parameter>
+      <ac:parameter ac:name="columns">key,summary,assignee,created,updated,status</ac:parameter>
       <ac:parameter ac:name="server">%s</ac:parameter>
       <ac:parameter ac:name="serverId">%s</ac:parameter>
       <ac:parameter ac:name="jqlQuery">project = %s and "Epic Link" = %s and Sprint = %d</ac:parameter>
@@ -274,13 +258,6 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 		epIssues := fmt.Sprintf(epIssuesTemplate,
 			config.Jira.Server, config.Jira.ServerID, config.Jira.Project, ep, sprint.ID)
 
-		projectTemplate := `
-    <tr>
-      <td>%s</td>
-      <td><div class="content-wrapper">%s</div></td>
-      <td>%s</td>
-      <td><br /></td>
-    </tr>`
 		epic, _, err := jiraClient.Issue.Get(ep, nil)
 		perror(err)
 		// The magic name of epic name field.
@@ -301,12 +278,23 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 				}
 			}
 		}
-		projectsBuf.WriteString(fmt.Sprintf(projectTemplate,
-			epicName, epIssues, participantsBuf.String()))
-	}
 
-	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
-	formatSectionEndForHtmlOutput(buf)
+		panelTemplate := `
+    <ac:structured-macro ac:name="panel">
+    <ac:rich-text-body>
+      <p><ac:placeholder>%s</ac:placeholder></p>
+    </ac:rich-text-body>
+    </ac:structured-macro>`
+		formatSectionBeginForHtmlOutput(buf)
+		buf.WriteString(fmt.Sprintf("\n<h1>%s</h1>", epicName))
+		buf.WriteString("\n<h3>Manager(*) &amp; Collaborators</h3>")
+		buf.WriteString(participantsBuf.String())
+		buf.WriteString("\n<h3>Description</h3>")
+		buf.WriteString(fmt.Sprintf(panelTemplate, "Please describe your update here"))
+		buf.WriteString("\n<h3>Links</h3>")
+		buf.WriteString(epIssues)
+		formatSectionEndForHtmlOutput(buf)
+	}
 }
 
 func genWeeklyReportToc(buf *bytes.Buffer) {
