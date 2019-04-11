@@ -48,7 +48,7 @@ func newWeeklyCommand() *cobra.Command {
 func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{})
-	lastSprint := getLatestPassedSprint(sprints)
+	lastSprint := getNearestFutureSprint(sprints)
 
 	var body bytes.Buffer
 
@@ -61,8 +61,8 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	formatPageBeginForHtmlOutput(&body)
 
 	genWeeklyReportToc(&body)
-	genWeeklyReportOnCall(&body, startDate, endDate)
 	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
+	genWeeklyReportOnCall(&body, startDate, endDate)
 	genWeeklyReportProjects(&body, lastSprint)
 
 	formatPageEndForHtmlOutput(&body)
@@ -159,6 +159,16 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
+func genPanelPlaceholder(buf *bytes.Buffer, desc string) {
+	panelTemplate := `
+    <ac:structured-macro ac:name="panel">
+    <ac:rich-text-body>
+      <p><ac:placeholder>%s</ac:placeholder></p>
+    </ac:rich-text-body>
+    </ac:structured-macro>`
+	buf.WriteString(fmt.Sprintf(panelTemplate, desc))
+}
+
 func genWeeklyUserPage(buf *bytes.Buffer, m Member, sprint *jira.Sprint) {
 	formatPageBeginForHtmlOutput(buf)
 
@@ -195,21 +205,9 @@ func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
 func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 	formatSectionBeginForHtmlOutput(buf)
 
-	buf.WriteString("\n<h1>New OnCall</h1>\n")
-	buf.WriteString(fmt.Sprintf("\n<blockquote>Newly created OnCalls (created &gt;= %s AND created &lt; %s)</blockquote>\n", start, end))
-	html := `
-<ac:structured-macro ac:name="jira">
-  <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
-  <ac:parameter ac:name="server">%s</ac:parameter>
-  <ac:parameter ac:name="serverId">%s</ac:parameter>
-  <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
-</ac:structured-macro>
-`
-	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
-
 	buf.WriteString("\n<h1>Highest Priority</h1>\n")
 	buf.WriteString("\n<blockquote>Unresolved highest priority OnCalls (priority = Highest AND resolution = Unresolved)</blockquote>\n")
-	html = `
+	html := `
 <ac:structured-macro ac:name="jira">
   <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
   <ac:parameter ac:name="server">%s</ac:parameter>
@@ -218,6 +216,23 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 </ac:structured-macro>
 `
 	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall))
+
+	buf.WriteString("\n<h1>New OnCall</h1>\n")
+	buf.WriteString(fmt.Sprintf("\n<blockquote>Newly created OnCalls (created &gt;= %s AND created &lt; %s)</blockquote>\n", start, end))
+	buf.WriteString("\n<h3>Operators</h3>")
+	buf.WriteString("\n<br />")
+	buf.WriteString("\n<h3>Summary</h3>")
+	genPanelPlaceholder(buf, "Please describe your update here")
+	buf.WriteString("\n<h3>Links</h3>")
+	html = `
+<ac:structured-macro ac:name="jira">
+  <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
+  <ac:parameter ac:name="server">%s</ac:parameter>
+  <ac:parameter ac:name="serverId">%s</ac:parameter>
+  <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
+</ac:structured-macro>
+`
+	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
 
 	formatSectionEndForHtmlOutput(buf)
 }
@@ -279,18 +294,12 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 			}
 		}
 
-		panelTemplate := `
-    <ac:structured-macro ac:name="panel">
-    <ac:rich-text-body>
-      <p><ac:placeholder>%s</ac:placeholder></p>
-    </ac:rich-text-body>
-    </ac:structured-macro>`
 		formatSectionBeginForHtmlOutput(buf)
 		buf.WriteString(fmt.Sprintf("\n<h1>%s</h1>", epicName))
 		buf.WriteString("\n<h3>Manager(*) &amp; Collaborators</h3>")
 		buf.WriteString(participantsBuf.String())
 		buf.WriteString("\n<h3>Description</h3>")
-		buf.WriteString(fmt.Sprintf(panelTemplate, "Please describe your update here"))
+		genPanelPlaceholder(buf, "Please describe your update here")
 		buf.WriteString("\n<h3>Links</h3>")
 		buf.WriteString(epIssues)
 		formatSectionEndForHtmlOutput(buf)
