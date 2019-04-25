@@ -262,6 +262,23 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 		epics[epicLink] = struct{}{}
 	}
 
+	projects := `
+  <table class="relative-table wrapped">
+    <tbody>
+    <tr>
+      <th>Name</th>
+      <th>Manager(*) &amp; Collaborators</th>
+      <th><p>Description</p></th>
+      <th><p>Links</p></th>
+    </tr>
+    %s
+    </tbody>
+  </table>`
+
+	descHolderBuf := bytes.Buffer{}
+	genPanelPlaceholder(&descHolderBuf, "Please describe your update here")
+
+	projectsBuf := bytes.Buffer{}
 	for ep := range epics {
 		epIssuesTemplate := `
     <ac:structured-macro ac:name="jira">
@@ -272,6 +289,21 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
     </ac:structured-macro>`
 		epIssues := fmt.Sprintf(epIssuesTemplate,
 			config.Jira.Server, config.Jira.ServerID, config.Jira.Project, ep, sprint.ID)
+
+		projectTemplate := `
+    <tr>
+      <td>%s</td>
+      <td>%s</td>
+      <td>%s</td>
+      <td>
+        <ac:structured-macro ac:name="expand">
+        <ac:parameter ac:name="title">Issues</ac:parameter>
+        <ac:rich-text-body>
+        %s
+        </ac:rich-text-body>
+        </ac:structured-macro>
+      </td>
+    </tr>`
 
 		epic, _, err := jiraClient.Issue.Get(ep, nil)
 		perror(err)
@@ -293,17 +325,13 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
 				}
 			}
 		}
-
-		formatSectionBeginForHtmlOutput(buf)
-		buf.WriteString(fmt.Sprintf("\n<h1>%s</h1>", epicName))
-		buf.WriteString("\n<h3>Manager(*) &amp; Collaborators</h3>")
-		buf.WriteString(participantsBuf.String())
-		buf.WriteString("\n<h3>Description</h3>")
-		genPanelPlaceholder(buf, "Please describe your update here")
-		buf.WriteString("\n<h3>Links</h3>")
-		buf.WriteString(epIssues)
-		formatSectionEndForHtmlOutput(buf)
+		projectsBuf.WriteString(fmt.Sprintf(projectTemplate,
+			epicName, participantsBuf.String(), descHolderBuf.String(), epIssues))
 	}
+
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
+	formatSectionEndForHtmlOutput(buf)
 }
 
 func genWeeklyReportToc(buf *bytes.Buffer) {

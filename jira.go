@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	jira "github.com/andygrunwald/go-jira"
@@ -68,6 +69,10 @@ func getLatestPassedSprint(sprints []jira.Sprint) *jira.Sprint {
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
 	for idx, sprint := range sprints {
+		if !strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			continue
+		}
 		// 1. Sprint Start Date < Now
 		// 2. Sprint End Date < Now
 		// 3. Min(Now - Sprint End Date)
@@ -91,6 +96,10 @@ func getNearestFutureSprint(sprints []jira.Sprint) *jira.Sprint {
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
 	for idx, sprint := range sprints {
+		if !strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			continue
+		}
 		// 1. Sprint End Date > Now
 		// 2. Min(Sprint Start Date - Now)
 		if sprint.EndDate.Before(now) {
