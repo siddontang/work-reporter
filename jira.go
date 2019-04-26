@@ -61,6 +61,12 @@ func getActiveSprint(boardID int) jira.Sprint {
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
 		State: "active",
 	})
+	for _, sprint := range sprints {
+		if strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			return sprint
+		}
+	}
 	return sprints[0]
 }
 
