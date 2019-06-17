@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	jira "github.com/andygrunwald/go-jira"
@@ -60,6 +61,12 @@ func getActiveSprint(boardID int) jira.Sprint {
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
 		State: "active",
 	})
+	for _, sprint := range sprints {
+		if strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			return sprint
+		}
+	}
 	return sprints[0]
 }
 
@@ -68,6 +75,10 @@ func getLatestPassedSprint(sprints []jira.Sprint) *jira.Sprint {
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
 	for idx, sprint := range sprints {
+		if !strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			continue
+		}
 		// 1. Sprint Start Date < Now
 		// 2. Sprint End Date < Now
 		// 3. Min(Now - Sprint End Date)
@@ -91,6 +102,10 @@ func getNearestFutureSprint(sprints []jira.Sprint) *jira.Sprint {
 	minDiff := time.Hour * 7 * 24
 	var minSprint *jira.Sprint
 	for idx, sprint := range sprints {
+		if !strings.Contains(sprint.Name, config.Jira.Project) {
+			// Only care about current project's sprints.
+			continue
+		}
 		// 1. Sprint End Date > Now
 		// 2. Min(Sprint Start Date - Now)
 		if sprint.EndDate.Before(now) {
@@ -130,7 +145,7 @@ func createNextSprint(boardID int, startDate time.Time) jira.Sprint {
 	// The sprint name is 2018-10-05 - 2018-10-11
 	endDate := startDate.Add(sprintDuration)
 
-	name := fmt.Sprintf("%s - %s", startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
+	name := fmt.Sprintf("%s %s - %s", config.Jira.Project, startDate.Format(dayFormat), endDate.Add(-time.Second).Format(dayFormat))
 
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{
 		State: "future",

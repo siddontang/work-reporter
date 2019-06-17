@@ -38,11 +38,11 @@ func runDailyCommandFunc(cmd *cobra.Command, args []string) {
 	formatGitHubIssuesForSlackOutput(&buf, issues)
 	buf.WriteString("\n")
 
-	last3Days := now.Add(-3 * 24 * time.Hour).Format(githubUTCDateFormat)
-	issues = getInactiveCommunityPullRequests(nil, &last3Days)
-	formatSectionForSlackOutput(&buf, "Inactive Community Pull Requests", "Community PRs inactive >= 3 days")
-	formatGitHubIssuesForSlackOutput(&buf, issues)
-	buf.WriteString("\n")
+	// last3Days := now.Add(-3 * 24 * time.Hour).Format(githubUTCDateFormat)
+	// issues = getInactiveCommunityPullRequests(nil, &last3Days)
+	// formatSectionForSlackOutput(&buf, "Inactive Community Pull Requests", "Community PRs inactive >= 3 days")
+	// formatGitHubIssuesForSlackOutput(&buf, issues)
+	// buf.WriteString("\n")
 
 	oncallIssues := queryJiraIssues("project = ONCALL AND created >= \"-1d\"")
 	formatSectionForSlackOutput(&buf, "New OnCalls", "New on calls in last 24 hours")

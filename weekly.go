@@ -48,8 +48,7 @@ func newWeeklyCommand() *cobra.Command {
 func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	boardID := getBoardID(config.Jira.Project, "scrum")
 	sprints := getSprints(boardID, jira.GetAllSprintsOptions{})
-	lastSprint := getLatestPassedSprint(sprints)
-	nextSprint := getNearestFutureSprint(sprints)
+	lastSprint := getNearestFutureSprint(sprints)
 
 	var body bytes.Buffer
 
@@ -60,24 +59,15 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	githubEndDate := lastSprint.EndDate.UTC().Format(githubUTCDateFormat)
 
 	formatPageBeginForHtmlOutput(&body)
-	genWeeklyReportToc(&body)
-	genWeeklyReportOnCall(&body, startDate, endDate)
-	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
 
-	for _, team := range config.Teams {
-		fmt.Println(team.Name)
-		formatSectionBeginForHtmlOutput(&body)
-		body.WriteString(fmt.Sprintf("<h1>%s Team</h1>", team.Name))
-		for _, m := range team.Members {
-			genWeeklyUserPage(&body, m, *lastSprint, *nextSprint)
-		}
-		formatSectionEndForHtmlOutput(&body)
-	}
+	genWeeklyReportToc(&body)
+	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
+	genWeeklyReportOnCall(&body, startDate, endDate)
+	genWeeklyReportProjects(&body, lastSprint)
 
 	formatPageEndForHtmlOutput(&body)
 
-	title := lastSprint.Name
-	createWeeklyReport(title, body.String())
+	createWeeklyReport(lastSprint, body.String())
 }
 
 func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
@@ -85,14 +75,8 @@ func runRotateSprintCommandFunc(cmd *cobra.Command, args []string) {
 	activeSprint := getActiveSprint(boardID)
 	nextSprint := createNextSprint(boardID, *activeSprint.EndDate)
 
-	pendingIssues := queryJiraIssues(
-		fmt.Sprintf("project = %s and Sprint = %d and statusCategory != Done",
-			config.Jira.Project, activeSprint.ID,
-		))
 	// Close the old sprint.
 	updateSprintState(activeSprint.ID, "closed")
-	// Move issues to the next sprint.
-	moveIssuesToSprint(nextSprint.ID, pendingIssues)
 	// Active the next sprint.
 	updateSprintState(nextSprint.ID, "active")
 	sendToSlack("Current active Sprint %s is closed", activeSprint.Name)
@@ -175,27 +159,41 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
-func genWeeklyUserPage(buf *bytes.Buffer, m Member, curSprint jira.Sprint, nextSprint jira.Sprint) {
-	sprintID := curSprint.ID
-	nextSprintID := nextSprint.ID
+func genPanelPlaceholder(buf *bytes.Buffer, desc string) {
+	panelTemplate := `
+    <ac:structured-macro ac:name="panel">
+    <ac:rich-text-body>
+      <p><ac:placeholder>%s</ac:placeholder></p>
+    </ac:rich-text-body>
+    </ac:structured-macro>`
+	buf.WriteString(fmt.Sprintf(panelTemplate, desc))
+}
 
-	html := `
+func genWeeklyUserPage(buf *bytes.Buffer, m Member, sprint *jira.Sprint) {
+	formatPageBeginForHtmlOutput(buf)
+
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString("\n<h3>Work</h3>\n")
+	buf.WriteString("\n<blockquote>A summary of my work in this week</blockquote>\n")
+	buf.WriteString("\n<p>Please fill this section</p>\n")
+	buf.WriteString("\n<h3>Next Week</h3>\n")
+	buf.WriteString("\n<blockquote>A plan of the next week</blockquote>\n")
+	buf.WriteString("\n<p>Please fill this section</p>\n")
+	formatSectionEndForHtmlOutput(buf)
+
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString("\n<h3>Issues in this week</h3>\n")
+	template := `
 <ac:structured-macro ac:name="jira">
-  <ac:parameter ac:name="columns">key,summary,created,updated,priority,status</ac:parameter>
+  <ac:parameter ac:name="columns">key,summary,created,updated,status</ac:parameter>
   <ac:parameter ac:name="server">%s</ac:parameter>
   <ac:parameter ac:name="serverId">%s</ac:parameter>
-  <ac:parameter ac:name="jqlQuery">project = TIKV AND sprint = %d AND assignee = "%s"</ac:parameter>
-</ac:structured-macro>
-`
+  <ac:parameter ac:name="jqlQuery">project = %s AND Sprint = %d AND assignee = "%s"</ac:parameter>
+</ac:structured-macro>`
+	buf.WriteString(fmt.Sprintf(template, config.Jira.Server, config.Jira.ServerID, config.Jira.Project, sprint.ID, m.Email))
+	formatSectionEndForHtmlOutput(buf)
 
-	buf.WriteString(fmt.Sprintf("\n<h2>%s</h2>\n", m.Name))
-	buf.WriteString("\n<h3>Work</h3>\n")
-	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, sprintID, m.Email))
-	genReviewPullRequests(buf, m.Github, curSprint.StartDate.Format(dayFormat), curSprint.EndDate.Format(dayFormat))
-	if nextSprintID > 0 {
-		buf.WriteString("\n<h3>Next Week</h3>\n")
-		buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, nextSprintID, m.Email))
-	}
+	formatPageEndForHtmlOutput(buf)
 }
 
 func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
@@ -207,21 +205,9 @@ func genReviewPullRequests(buf *bytes.Buffer, user, start, end string) {
 func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 	formatSectionBeginForHtmlOutput(buf)
 
-	buf.WriteString("\n<h1>New OnCall</h1>\n")
-	buf.WriteString(fmt.Sprintf("\n<blockquote>Newly created OnCalls (created &gt;= %s AND created &lt; %s)</blockquote>\n", start, end))
-	html := `
-<ac:structured-macro ac:name="jira">
-  <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
-  <ac:parameter ac:name="server">%s</ac:parameter>
-  <ac:parameter ac:name="serverId">%s</ac:parameter>
-  <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
-</ac:structured-macro>
-`
-	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
-
 	buf.WriteString("\n<h1>Highest Priority</h1>\n")
 	buf.WriteString("\n<blockquote>Unresolved highest priority OnCalls (priority = Highest AND resolution = Unresolved)</blockquote>\n")
-	html = `
+	html := `
 <ac:structured-macro ac:name="jira">
   <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
   <ac:parameter ac:name="server">%s</ac:parameter>
@@ -230,6 +216,23 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 </ac:structured-macro>
 `
 	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall))
+
+	buf.WriteString("\n<h1>New OnCall</h1>\n")
+	buf.WriteString(fmt.Sprintf("\n<blockquote>Newly created OnCalls (created &gt;= %s AND created &lt; %s)</blockquote>\n", start, end))
+	buf.WriteString("\n<h3>Operators</h3>")
+	buf.WriteString("\n<br />")
+	buf.WriteString("\n<h3>Summary</h3>")
+	genPanelPlaceholder(buf, "Please describe your update here")
+	buf.WriteString("\n<h3>Links</h3>")
+	html = `
+<ac:structured-macro ac:name="jira">
+  <ac:parameter ac:name="columns">key,summary,created,updated,assignee,status</ac:parameter>
+  <ac:parameter ac:name="server">%s</ac:parameter>
+  <ac:parameter ac:name="serverId">%s</ac:parameter>
+  <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
+</ac:structured-macro>
+`
+	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
 
 	formatSectionEndForHtmlOutput(buf)
 }
@@ -244,6 +247,90 @@ func genWeeklyReportIssuesPRs(buf *bytes.Buffer, start, end string) {
 	buf.WriteString("\n<h1>Merged PRs</h1>\n")
 	buf.WriteString(fmt.Sprintf("\n<blockquote>Merged GitHub PRs (merged: %s..%s)</blockquote>\n", start, end))
 	formatGitHubIssuesForHtmlOutput(buf, prs)
+	formatSectionEndForHtmlOutput(buf)
+}
+
+func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
+	epicQuery := `project = %s and "Epic Link" is not EMPTY and Sprint = %d`
+	epicIssues := queryJiraIssues(fmt.Sprintf(epicQuery, config.Jira.Project, sprint.ID))
+	// An epic link set.
+	epics := make(map[string]struct{})
+	for _, is := range epicIssues {
+		// The magic name of epic link field.
+		const epicLinkField = "customfield_10100"
+		epicLink := is.Fields.Unknowns[epicLinkField].(string)
+		epics[epicLink] = struct{}{}
+	}
+
+	projects := `
+  <table class="relative-table wrapped">
+    <tbody>
+    <tr>
+      <th>Name</th>
+      <th>Manager(*) &amp; Collaborators</th>
+      <th><p>Description</p></th>
+      <th><p>Links</p></th>
+    </tr>
+    %s
+    </tbody>
+  </table>`
+
+	descHolderBuf := bytes.Buffer{}
+	genPanelPlaceholder(&descHolderBuf, "Please describe your update here")
+
+	projectsBuf := bytes.Buffer{}
+	for ep := range epics {
+		epIssuesTemplate := `
+    <ac:structured-macro ac:name="jira">
+      <ac:parameter ac:name="columns">key,summary,assignee,created,updated,status</ac:parameter>
+      <ac:parameter ac:name="server">%s</ac:parameter>
+      <ac:parameter ac:name="serverId">%s</ac:parameter>
+      <ac:parameter ac:name="jqlQuery">project = %s and "Epic Link" = %s and Sprint = %d</ac:parameter>
+    </ac:structured-macro>`
+		epIssues := fmt.Sprintf(epIssuesTemplate,
+			config.Jira.Server, config.Jira.ServerID, config.Jira.Project, ep, sprint.ID)
+
+		projectTemplate := `
+    <tr>
+      <td>%s</td>
+      <td>%s</td>
+      <td>%s</td>
+      <td>
+        <ac:structured-macro ac:name="expand">
+        <ac:parameter ac:name="title">Issues</ac:parameter>
+        <ac:rich-text-body>
+        %s
+        </ac:rich-text-body>
+        </ac:structured-macro>
+      </td>
+    </tr>`
+
+		epic, _, err := jiraClient.Issue.Get(ep, nil)
+		perror(err)
+		// The magic name of epic name field.
+		const epicNameField = "customfield_10102"
+		epicName := html.EscapeString(epic.Fields.Unknowns[epicNameField].(string))
+		userTemplate := `<ac:link><ri:user ri:username="%s" /></ac:link>`
+		// Manager
+		participantsBuf := bytes.Buffer{}
+		participantsBuf.WriteString(fmt.Sprintf(userTemplate, epic.Fields.Assignee.Name) + "*")
+		// The magic name of collaborators field.
+		const collaboratorsField = "customfield_10949"
+		if field, ok := epic.Fields.Unknowns[collaboratorsField]; ok && field != nil {
+			for _, user := range field.([]interface{}) {
+				if user != nil {
+					name := user.(map[string]interface{})["name"].(string)
+					participantsBuf.WriteString("<br />")
+					participantsBuf.WriteString(fmt.Sprintf(userTemplate, name))
+				}
+			}
+		}
+		projectsBuf.WriteString(fmt.Sprintf(projectTemplate,
+			epicName, participantsBuf.String(), descHolderBuf.String(), epIssues))
+	}
+
+	formatSectionBeginForHtmlOutput(buf)
+	buf.WriteString(fmt.Sprintf(projects, projectsBuf.String()))
 	formatSectionEndForHtmlOutput(buf)
 }
 
@@ -264,7 +351,8 @@ func genWeeklyReportToc(buf *bytes.Buffer) {
 	formatSectionEndForHtmlOutput(buf)
 }
 
-func createWeeklyReport(title string, value string) {
+func createWeeklyReport(sprint *jira.Sprint, value string) {
+	title := sprint.Name
 	space := config.Confluence.Space
 	c := getContentByTitle(space, title)
 
@@ -273,6 +361,14 @@ func createWeeklyReport(title string, value string) {
 	} else {
 		parent := getContentByTitle(space, config.Confluence.WeeklyPath)
 		c = createContent(space, parent.Id, title, value)
+		for _, team := range config.Teams {
+			for _, m := range team.Members {
+				body := bytes.Buffer{}
+				genWeeklyUserPage(&body, m, sprint)
+				userTitle := fmt.Sprintf("%s - %s", m.Name, title)
+				createContent(space, c.Id, userTitle, body.String())
+			}
+		}
 	}
 
 	sendToSlack("Weekly report for sprint %s is generated: %s%s", title, config.Confluence.Endpoint, c.Links.WebUI)
