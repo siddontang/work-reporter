@@ -106,7 +106,7 @@ func formatLabelForHtmlOutput(name string, color string) string {
 		<ac:parameter ac:name="colour">%s</ac:parameter>
 		<ac:parameter ac:name="title">%s</ac:parameter>
 	</ac:structured-macro>`, color, html.EscapeString(name))
-	return s
+	return strings.TrimSpace(s)
 }
 
 func formatGitHubIssueForHtmlOutput(issue github.Issue) string {
@@ -159,30 +159,34 @@ func formatGitHubIssuesForHtmlOutput(buf *bytes.Buffer, issues []github.Issue) {
 	buf.WriteString("</ul>")
 }
 
-func genPanelPlaceholder(buf *bytes.Buffer, desc string) {
+func genPanelPlaceholder(buf *bytes.Buffer, title string) {
+	titleParameter := ""
+	if title != "" {
+		titleParameter = fmt.Sprintf(`<ac:parameter ac:name="title">%s</ac:parameter>`, title)
+	}
 	panelTemplate := `
-    <ac:structured-macro ac:name="panel">
-    <ac:rich-text-body>
-      <p><ac:placeholder>%s</ac:placeholder></p>
-    </ac:rich-text-body>
+		<ac:structured-macro ac:name="panel">
+			%s
+			<ac:rich-text-body>
+				<ul>
+					<li>To be filled</li>
+				</ul>
+			</ac:rich-text-body>
     </ac:structured-macro>`
-	buf.WriteString(fmt.Sprintf(panelTemplate, desc))
+	buf.WriteString(fmt.Sprintf(strings.TrimSpace(panelTemplate), titleParameter))
 }
 
 func genWeeklyUserPage(buf *bytes.Buffer, m Member, sprint *jira.Sprint) {
 	formatPageBeginForHtmlOutput(buf)
 
 	formatSectionBeginForHtmlOutput(buf)
-	buf.WriteString("\n<h3>Work</h3>\n")
-	buf.WriteString("\n<blockquote>A summary of my work in this week</blockquote>\n")
-	buf.WriteString("\n<p>Please fill this section</p>\n")
-	buf.WriteString("\n<h3>Next Week</h3>\n")
-	buf.WriteString("\n<blockquote>A plan of the next week</blockquote>\n")
-	buf.WriteString("\n<p>Please fill this section</p>\n")
+	genPanelPlaceholder(buf, "This week tasks")
+	genPanelPlaceholder(buf, "Next week tasks")
+	genPanelPlaceholder(buf, "Reviewed PRs")
 	formatSectionEndForHtmlOutput(buf)
 
 	formatSectionBeginForHtmlOutput(buf)
-	buf.WriteString("\n<h3>Issues in this week</h3>\n")
+	buf.WriteString("\n<h3>JIRA issues in this week</h3>\n")
 	template := `
 <ac:structured-macro ac:name="jira">
   <ac:parameter ac:name="columns">key,summary,created,updated,status</ac:parameter>
@@ -222,7 +226,7 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
 	buf.WriteString("\n<h3>Operators</h3>")
 	buf.WriteString("\n<br />")
 	buf.WriteString("\n<h3>Summary</h3>")
-	genPanelPlaceholder(buf, "Please describe your update here")
+	genPanelPlaceholder(buf, "")
 	buf.WriteString("\n<h3>Links</h3>")
 	html = `
 <ac:structured-macro ac:name="jira">
@@ -231,8 +235,8 @@ func genWeeklyReportOnCall(buf *bytes.Buffer, start, end string) {
   <ac:parameter ac:name="serverId">%s</ac:parameter>
   <ac:parameter ac:name="jqlQuery">project = %s AND created &gt;= %s AND created &lt; %s</ac:parameter>
 </ac:structured-macro>
-`
-	buf.WriteString(fmt.Sprintf(html, config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
+	`
+	buf.WriteString(fmt.Sprintf(strings.TrimSpace(html), config.Jira.Server, config.Jira.ServerID, config.Jira.OnCall, start, end))
 
 	formatSectionEndForHtmlOutput(buf)
 }
@@ -276,7 +280,7 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
   </table>`
 
 	descHolderBuf := bytes.Buffer{}
-	genPanelPlaceholder(&descHolderBuf, "Please describe your update here")
+	genPanelPlaceholder(&descHolderBuf, "")
 
 	projectsBuf := bytes.Buffer{}
 	for ep := range epics {
@@ -295,14 +299,12 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
       <td>%s</td>
       <td>%s</td>
       <td>%s</td>
-      <td>
-        <ac:structured-macro ac:name="expand">
+      <td><ac:structured-macro ac:name="expand">
         <ac:parameter ac:name="title">Issues</ac:parameter>
         <ac:rich-text-body>
         %s
         </ac:rich-text-body>
-        </ac:structured-macro>
-      </td>
+      </ac:structured-macro></td>
     </tr>`
 
 		epic, _, err := jiraClient.Issue.Get(ep, nil)
@@ -362,11 +364,13 @@ func createWeeklyReport(sprint *jira.Sprint, value string) {
 		parent := getContentByTitle(space, config.Confluence.WeeklyPath)
 		c = createContent(space, parent.Id, title, value)
 		for _, team := range config.Teams {
+			teamTitle := fmt.Sprintf("%s Team - %s", team.Name, title)
+			ct := createContent(space, c.Id, teamTitle, "")
 			for _, m := range team.Members {
 				body := bytes.Buffer{}
 				genWeeklyUserPage(&body, m, sprint)
 				userTitle := fmt.Sprintf("%s - %s", m.Name, title)
-				createContent(space, c.Id, userTitle, body.String())
+				createContent(space, ct.Id, userTitle, body.String())
 			}
 		}
 	}
