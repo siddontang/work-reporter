@@ -102,10 +102,10 @@ func formatSectionEndForHtmlOutput(buf *bytes.Buffer) {
 
 func formatLabelForHtmlOutput(name string, color string) string {
 	s := fmt.Sprintf(`
-	<ac:structured-macro ac:macro-id="9f29312a-2730-48f0-ab6d-91d6bef3f016" ac:name="status" ac:schema-version="1">
-		<ac:parameter ac:name="colour">%s</ac:parameter>
-		<ac:parameter ac:name="title">%s</ac:parameter>
-	</ac:structured-macro>`, color, html.EscapeString(name))
+  <ac:structured-macro ac:macro-id="9f29312a-2730-48f0-ab6d-91d6bef3f016" ac:name="status" ac:schema-version="1">
+    <ac:parameter ac:name="colour">%s</ac:parameter>
+    <ac:parameter ac:name="title">%s</ac:parameter>
+  </ac:structured-macro>`, color, html.EscapeString(name))
 	return strings.TrimSpace(s)
 }
 
@@ -165,13 +165,9 @@ func genPanelPlaceholder(buf *bytes.Buffer, title string) {
 		titleParameter = fmt.Sprintf(`<ac:parameter ac:name="title">%s</ac:parameter>`, title)
 	}
 	panelTemplate := `
-		<ac:structured-macro ac:name="panel">
-			%s
-			<ac:rich-text-body>
-				<ul>
-					<li>To be filled</li>
-				</ul>
-			</ac:rich-text-body>
+    <ac:structured-macro ac:name="panel">
+      %s
+      <ac:rich-text-body><ul><li>To be filled</li></ul></ac:rich-text-body>
     </ac:structured-macro>`
 	buf.WriteString(fmt.Sprintf(strings.TrimSpace(panelTemplate), titleParameter))
 }
@@ -180,6 +176,7 @@ func genWeeklyUserPage(buf *bytes.Buffer, m Member, sprint *jira.Sprint) {
 	formatPageBeginForHtmlOutput(buf)
 
 	formatSectionBeginForHtmlOutput(buf)
+	genPanelPlaceholder(buf, "This week OKR progress")
 	genPanelPlaceholder(buf, "This week tasks")
 	genPanelPlaceholder(buf, "Next week tasks")
 	genPanelPlaceholder(buf, "Reviewed PRs")
@@ -301,9 +298,7 @@ func genWeeklyReportProjects(buf *bytes.Buffer, sprint *jira.Sprint) {
       <td>%s</td>
       <td><ac:structured-macro ac:name="expand">
         <ac:parameter ac:name="title">Issues</ac:parameter>
-        <ac:rich-text-body>
-        %s
-        </ac:rich-text-body>
+        <ac:rich-text-body>%s</ac:rich-text-body>
       </ac:structured-macro></td>
     </tr>`
 
