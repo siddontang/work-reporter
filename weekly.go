@@ -63,7 +63,7 @@ func runWeelyReportCommandFunc(cmd *cobra.Command, args []string) {
 	genWeeklyReportToc(&body)
 	genWeeklyReportIssuesPRs(&body, githubStartDate, githubEndDate)
 	genWeeklyReportOnCall(&body, startDate, endDate)
-	genWeeklyReportProjects(&body, lastSprint)
+	// genWeeklyReportProjects(&body, lastSprint)
 
 	formatPageEndForHtmlOutput(&body)
 
