@@ -111,7 +111,7 @@ func createContent(space string, parentID string, title string, value string) Co
 	content.Ancestors = []Ancestor{
 		Ancestor{Id: parentID},
 	}
-	content.Body.Storage.Value = value
+	content.Body.Storage.Value = escaperValue(value)
 	content.Body.Storage.Representation = "storage"
 
 	apiEndpoint := "rest/api/content"
@@ -133,7 +133,7 @@ func updateContent(content Content, value string) Content {
 	}
 
 	newContent.Space.Key = content.Space.Key
-	newContent.Body.Storage.Value = value
+	newContent.Body.Storage.Value = escaperValue(value)
 	newContent.Body.Storage.Representation = "storage"
 	newContent.Version.Number = content.Version.Number + 1
 
